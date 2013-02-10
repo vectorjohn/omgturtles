@@ -1,7 +1,7 @@
 src = 'http://home.vectorjohn.com/omgturtles'
 dir = '/john'
 
-fs.mkdir( dir )
+fs.makeDir( dir )
 
 print( 'loading index file...' )
 index = http.get( src .. '/index.txt' )
@@ -11,7 +11,7 @@ if not index then
 end
 
 f = fs.open( dir..'/index.txt', 'w' )
-f.write( index )
+f.write( index.readAll() )
 
 f.close()
 
@@ -25,7 +25,7 @@ while filename do
 		print( 'Error loading file: ', filename )
 	else
 		f = fs.open( dir..'/'..filename, 'w' )
-		f.write( data )
+		f.write( data.readAll() )
 		f.close()
 	end
 
