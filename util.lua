@@ -121,6 +121,17 @@ function chainMove( t, ... )
 	end
 end
 
+function tcurry( t, fn, ... )
+	local preargs = arg
+	local arglen = table.getn( arg )
+	return function( ... )
+		for i in ipairs( arg ) do
+			preargs[ arglen + i ] = arg[i]
+		end
+		return t( fn, unpack( preargs ) )
+	end
+end
+
 function verboseTurtle( t )
 	return function( ... )
 		term.write( '* '.. arg[1].. ': ' )

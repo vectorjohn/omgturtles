@@ -58,6 +58,11 @@ function runTest()
 		'forward',
 		'back'
 	)
+
+	print( "Test tcurry" )
+	local move = tcurry( t, 'forward' )
+	move()
+	move()
 end
 
 runTest()
