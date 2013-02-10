@@ -1,8 +1,8 @@
 
 function spiralDo( t, r, each )
 
-	function step()
-		if each and each( t ) == false then return false end
+	function step( curRad, dir, sidePos )
+		if each and each( t, curRad, dir, sidePos ) == false then return false end
 		if not t.forward() then return false end
 		return true
 	end
@@ -11,13 +11,45 @@ function spiralDo( t, r, each )
 		for dir = 0, 3 do
 			for side=1, 2 * rr do
 				if dir > 0 and side == 1 then t.turnLeft() end
-				if not step() then return false end
+				if not step( rr, dir, side ) then return false end
 				if dir == 0 and side == 1 then t.turnLeft() end
 			end
 		end
 	end
 
+	return true
 end
+
+function hillClimb( t, range, cmp )
+	local success = false
+	local allAir = true
+	local status = spiralDo( t, range, function( t, r)
+		allAir = allAir or not t.detectDown()
+
+		if r > 1 and allAir then
+			return false
+		end
+
+		if t.detect() then
+			success = true
+			return false
+		end
+	end)
+
+	if allAir then
+		-- surrounded by air.  found a local max!
+		return true
+	end
+
+	-- blocked or went to end of range with no up hills.
+	if status or not success then
+		return false
+	end
+
+	t.up()
+	return hillClimb( t, range, cmp )
+end
+
 
 function faketurtle()
 	local T = {
