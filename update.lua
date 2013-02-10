@@ -19,15 +19,20 @@ index = fs.open( dir..'/index.txt', 'r' )
 
 filename = index.readLine()
 while filename do
-	print( 'getting ', filename )
-	data = http.get( src..'/'..filename )
-	if not data then
-		print( 'Error loading file: ', filename )
+	if string.sub( filename, string.len( filename ) ) == '/' then
+		print( 'creating directory ', filename )
+		fs.makeDir( dir..'/'..filename )
 	else
-		f = fs.open( dir..'/'..filename, 'w' )
-		f.write( data.readAll() )
-		f.close()
+		print( 'getting ', filename )
+		data = http.get( src..'/'..filename )
+		if not data then
+			print( 'Error loading file: ', filename )
+		else
+			f = fs.open( dir..'/'..filename, 'w' )
+			f.write( data.readAll() )
+			f.close()
+		end
 	end
-
+	
 	filename = index.readLine()
 end
