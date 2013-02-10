@@ -24,7 +24,7 @@ function hillClimb( t, range, cmp )
 	local success = false
 	local allAir = true
 	local status = spiralDo( t, range, function( t, r)
-		allAir = allAir or not t.detectDown()
+		allAir = allAir and not t.detectDown()
 
 		if r > 1 and allAir then
 			return false
