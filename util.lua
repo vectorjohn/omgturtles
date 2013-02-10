@@ -2,7 +2,7 @@
 function spiralDo( t, r, each )
 
 	function step()
-		if each and each( t ) ~= false then return false end
+		if each and each( t ) == false then return false end
 		if not t.forward() then return false end
 		return true
 	end
