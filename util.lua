@@ -102,15 +102,21 @@ function trackable( t )
 	}
 
 	return function( cmd, ... )
+		if t[ cmd ] ~= nil then
+			local ret = t[ cmd ]( unpack( arg ) )
+			if ret ~= false then
+				if moves[ cmd ] ~= nil then
+					moves[ cmd ]()
+				end
+			end
+
+			return ret
+		end
+
+		-- not a turtle command, just an internal one
 		if moves[ cmd ] ~= nil then
 			moves[ cmd ]()
 		end
-
-		if t[ cmd ] == nil then
-			return nil
-		end
-		
-		return t[ cmd ]( unpack( arg ) )
 	end
 end
 
@@ -144,5 +150,7 @@ function verboseTurtle( t )
 	end
 end
 
--- function reversibleDo( )
+function reversibleDo( t, fn )
+	t( fn )
+end
 
