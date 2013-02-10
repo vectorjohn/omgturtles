@@ -3,16 +3,16 @@ function spiralDo( t, r, each )
 
 	function step( curRad, dir, sidePos )
 		if each and each( t, curRad, dir, sidePos ) == false then return false end
-		if not t.forward() then return false end
+		if not t( 'forward' ) then return false end
 		return true
 	end
 
 	for rr = 1, r do
 		for dir = 0, 3 do
 			for side=1, 2 * rr do
-				if dir > 0 and side == 1 then t.turnLeft() end
+				if dir > 0 and side == 1 then t('turnLeft') end
 				if not step( rr, dir, side ) then return false end
-				if dir == 0 and side == 1 then t.turnLeft() end
+				if dir == 0 and side == 1 then t('turnLeft') end
 			end
 		end
 	end
@@ -24,13 +24,13 @@ function hillClimb( t, range, cmp )
 	local success = false
 	local allAir = true
 	local status = spiralDo( t, range, function( t, r)
-		allAir = allAir and not t.detectDown()
+		allAir = allAir and not t( 'detectDown' )
 
 		if r > 1 and allAir then
 			return false
 		end
 
-		if t.detect() then
+		if t( 'detect' ) then
 			success = true
 			return false
 		end
@@ -46,45 +46,92 @@ function hillClimb( t, range, cmp )
 		return false
 	end
 
-	t.up()
+	t( 'up' )
 	return hillClimb( t, range, cmp )
 end
 
+function trackable( t )
+	local x = 0
+	local y = 0
+	local dir = 0
+	
+	local moves = {}
 
-function faketurtle()
-	local T = {
-		x = 0,
-		y = 0,
-		dir = 0,
+	moves = {
+		move = function(scale)
+			if dir == 0 then y = y + scale
+				elseif dir == 1 then x = x + scale
+				elseif dir == 2 then y = y - scale
+				elseif dir == 3 then x = x - scale
+			end
+			return true
+		end,
+
+		forward = function()
+			moves.move(1)
+		end,
+
+		back = function()
+			moves.move(-1)
+		end,
+
+		turnLeft = function()
+			dir = dir - 1
+			if dir < 0 then dir = 3 end
+		end,
+
+		turnRight = function()
+			dir = dir + 1
+			if dir > 3 then dir = 0 end
+		end,
+
+		getState = function()
+			return {
+				x = x,
+				y = y,
+				dir = dir,
+			}
+		end,
+
+		printState = function()
+			print( 'Turtle <'..x..','..y..'> facing '.. dir )
+		end,
+
+
+
 	}
 
-	function T.forward()
-		if T.dir == 0 then T.y = T.y + 1
-			elseif T.dir == 1 then T.x = T.x + 1
-			elseif T.dir == 2 then T.y = T.y - 1
-			elseif T.dir == 3 then T.x = T.x - 1
+	return function( cmd, ... )
+		if moves[ cmd ] ~= nil then
+			moves[ cmd ]()
 		end
-		--print( "Move to <", T.x, ",", T.y, ">" )
-		return true
+
+		if t[ cmd ] == nil then
+			return nil
+		end
+		
+		return t[ cmd ]( unpack( arg ) )
 	end
+end
 
-	function T.turnLeft()
-		T.dir = T.dir - 1
-		if T.dir < 0 then T.dir = 3 end
-		--print (T.dir)
-		return true
+
+function chainMove( t, ... )
+	for i in ipairs( arg ) do
+		t( arg[i] )
 	end
-
-	function T.dig() return true end
-
-	return T
 end
 
-function runTest()
-	t = faketurtle()
-	spiralDo( t, 3, nil, justdoit )
+function verboseTurtle( t )
+	return function( ... )
+		term.write( '* '.. arg[1].. ': ' )
+
+		local ret = t( unpack( arg ) )
+		if arg[1] ~= 'printState' then
+			t( 'printState' )
+		end
+		return ret
+	end
 end
 
-if turtle == nil then
-	runTest()
-end
+-- function reversibleDo( )
+

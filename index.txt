@@ -1,3 +1,5 @@
 util.lua
 update.lua
 index.txt
+progs/
+progs/libtest.lua
