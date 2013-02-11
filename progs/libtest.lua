@@ -7,6 +7,7 @@ function cc_include( f )
 end
 
 cc_include( '../util.lua' )
+cc_include( '../mine.lua' )
 
 
 term = {
@@ -46,6 +47,11 @@ end
 
 function runTest()
 	t = trackable( faketurtle() )
+
+	mine( t, 1, 2 )
+
+	do return end
+
 	spiralDo( t, 3, nil, justdoit )
 
 	t = verboseTurtle( t )

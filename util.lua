@@ -53,7 +53,9 @@ end
 function trackable( t )
 	local x = 0
 	local y = 0
+	local z = 0
 	local dir = 0
+	local states = {}
 	
 	local moves = {}
 
@@ -75,6 +77,14 @@ function trackable( t )
 			moves.move(-1)
 		end,
 
+		down = function()
+			z = z - 1
+		end,
+
+		up = function()
+			z = z + 1
+		end,
+
 		turnLeft = function()
 			dir = dir - 1
 			if dir < 0 then dir = 3 end
@@ -89,14 +99,51 @@ function trackable( t )
 			return {
 				x = x,
 				y = y,
+				z = z,
 				dir = dir,
 			}
+		end,
+
+		pushState = function()
+			local tend = table.getn( states )
+			states[ tend + 1 ] = moves.getState()
+			x = 0
+			y = 0
+			z = 0
+			dir = 0
+		end,
+
+		popState = function()
+			local tend = table.getn( states )
+			local old = moves.getState()
+			if tend > 0 then
+				local prev = states[ tend ]
+				states[ tend ] = nil
+				x = prev.x
+				y = prev.y
+				z = prev.z
+				dir = prev.dir
+				return old
+			end
+
+			return nil
+		end,
+
+		mergeState = function()
+			local old = moves.popState()
+			x = x + old.x
+			y = y + old.y
+			z = z + old.z
+			dir = dir + old.dir
+			if dir > 3 then dir = dir - 4 end
+
+			return moves.getState()
 		end,
 
 		noop = function() return end,
 
 		printState = function()
-			print( 'Turtle <'..x..','..y..'> facing '.. dir )
+			print( 'Turtle <'..x..','..y..','..z..'> facing '.. dir )
 		end,
 
 
@@ -117,7 +164,7 @@ function trackable( t )
 
 		-- not a turtle command, just an internal one
 		if moves[ cmd ] ~= nil then
-			moves[ cmd ]()
+			return moves[ cmd ]()
 		end
 	end
 end
@@ -190,4 +237,20 @@ function revChain( t, ... )
 	end
 	--print( unpack( fns ) )
 	return chainMove( t, unpack( fns ) )
+end
+
+function drive( t, dist )
+	for i = 1, dist do
+		if not t( 'forward' ) then
+			if not t( 'up' ) then return false end
+			return drive( t, dist - i + 1 )
+		end
+		while t( 'down' ) do end
+	end
+
+	return true
+end
+
+function rect( t, width, height )
+
 end

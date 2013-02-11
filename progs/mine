@@ -1,0 +1,14 @@
+function cc_include( f )
+	if require then
+		require( f )
+	else
+		dofile( '/john/'..f )
+	end
+end
+
+cc_include( 'util.lua' )
+cc_include( 'mine.lua' )
+
+t = trackable( turtle )
+
+mine( t, 1, 4 )

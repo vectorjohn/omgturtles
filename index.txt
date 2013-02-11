@@ -5,3 +5,4 @@ mine.lua
 progs/
 progs/libtest.lua
 progs/carpet.lua
+progs/mine
