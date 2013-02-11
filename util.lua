@@ -93,6 +93,8 @@ function trackable( t )
 			}
 		end,
 
+		noop = function() return end,
+
 		printState = function()
 			print( 'Turtle <'..x..','..y..'> facing '.. dir )
 		end,
@@ -150,7 +152,42 @@ function verboseTurtle( t )
 	end
 end
 
+reverse = {
+	forward = 'back',
+	back = 'forward',
+	turnLeft = 'turnRight',
+	turnRight = 'turnLeft',
+}
+
 function reversibleDo( t, fn )
+	if reverse[ fn ] == nil then return false end
+
 	t( fn )
+	t( reverse[ fn ] )
 end
 
+function reversible( t, fn )
+	return function()
+		reversibleDo( t, fn )
+	end
+end
+
+function revChain( t, ... )
+	local fns = {}
+	for i in ipairs( arg ) do
+		fns[i] = arg[i]
+	end
+
+	local len = table.getn( arg )
+	for i in ipairs( arg ) do
+		if reverse[ arg[i] ] == nil then
+			fns[ 2 * len - i + 1 ] = 'noop'
+		else
+			--print( 'reverse of ', arg[i], ' is ', reverse[ arg[i] ], ' in ', i, 2 * len - i + 1 )
+
+			fns[ 2 * len - i + 1 ] = reverse[ arg[i] ]
+		end
+	end
+	--print( unpack( fns ) )
+	return chainMove( t, unpack( fns ) )
+end

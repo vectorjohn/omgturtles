@@ -63,6 +63,23 @@ function runTest()
 	local move = tcurry( t, 'forward' )
 	move()
 	move()
+
+	print( 'Test reverse' )
+
+	local rmove = reversible( t, 'forward' )
+	rmove()
+	rmove()
+
+	revChain( t, 
+		'forward',
+		'turnLeft',
+		'forward',
+		'forward',
+		'turnRight',
+		'back',
+		'forward',
+		'forward'
+	)
 end
 
 runTest()

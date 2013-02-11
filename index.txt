@@ -3,3 +3,4 @@ update.lua
 index.txt
 progs/
 progs/libtest.lua
+progs/carpet.lua
