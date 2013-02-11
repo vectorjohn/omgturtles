@@ -1,6 +1,7 @@
 util.lua
 update.lua
 index.txt
+mine.lua
 progs/
 progs/libtest.lua
 progs/carpet.lua
