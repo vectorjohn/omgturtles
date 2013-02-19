@@ -1,6 +1,7 @@
 --SHIM
 
 require( 'debugger' )
+require( 'profiler' )
 if not math.huge then
     math.huge = 1 / 0
 end
@@ -40,17 +41,27 @@ function DSLPQueue( cmp, equal )
         end,
 
         insert = function( node, key )
+            self.stats.find = self.stats.find + 1
+            self.stats.insert = self.stats.insert + 1
             local l = list
             local prev = nil
             local link = {next = nil, prev = nil, value = node, key = key}
+
+            local len = self.length()
+            if len > self.stats.maxl then
+                self.stats.maxl = len
+            end
+
             while l do
-                if cmp( key, l.key ) < 1 then
+                if cmp( key, l.key ) <= 0 then
                     if l.prev then
                         link.prev = l.prev
                         l.prev.next = link
                     end
                     l.prev = link
                     link.next = l
+
+                    if l == list then list = link end
 
                     return
                 end
@@ -86,6 +97,9 @@ function DSLPQueue( cmp, equal )
         end,
 
         remove = function( node )
+            self.stats.find = self.stats.find + 1
+            self.stats.remove = self.stats.remove + 1
+
             local l = list
             while l do
                 if equal( node, l.value ) then
@@ -124,7 +138,10 @@ function DSLPQueue( cmp, equal )
             return value
         end,
 
+        stats = { find = 0, insert = 0, remove = 0, maxl = 0},
+
         contains = function( node )
+            self.stats.find = self.stats.find + 1
             local l = list
             while l do
                 if equal( node, l.value ) then return true end
@@ -219,23 +236,30 @@ function DStarLite( start, goal, followpath )
 
     map.add( start.v, start )
     function Succ( s )
+        -- TODO: Randomize this.  I think it helps.
         s = s.v
         local vertices = {
 			{s[1],     s[2] + 1, s[3]    },
 			{s[1] - 1, s[2],     s[3]    },
 			{s[1] + 1, s[2],     s[3]    },
-			{s[1],     s[2],     s[3] + 1},
-			{s[1],     s[2],     s[3] - 1},
+			--{s[1],     s[2],     s[3] + 1},
+			--{s[1],     s[2],     s[3] - 1},
 			{s[1],     s[2] - 1, s[3]    },
 		}
 
         local nodes = {}
-        for i,v in pairs(vertices) do
-            local n = map.get( v )
+        local i, diff = 1, 1
+        if math.random() > .5 then
+            i = table.getn( vertices )
+            diff = -1
+        end
+        while vertices[i] do
+            local n = map.get( vertices[i] )
             if not n then
-                n = Node( v )
+                n = Node( vertices[i] )
             end
             table.insert( nodes, n )
+            i = i + diff
         end
 
         local ni = 0
@@ -251,6 +275,8 @@ function DStarLite( start, goal, followpath )
 
     function Heuristic( s1, s2 )
         return TrueDistance( s1.v, s2.v )
+        -- I think for this to be feasible, I need to randomize vertices
+        --return Distance( s1.v, s2.v )
     end
 
     function Cost( s, sn )
@@ -276,11 +302,8 @@ function DStarLite( start, goal, followpath )
         CompareKey = function( k1, k2 )
             local kd1 = k1[1] - k2[1]
 
-            if kd1 == 0 then return k1[2] - k2[2]
-            elseif kd1 < 0 then return -1
-            else return 1
-            end
-            
+            if kd1 == 0 then return k1[2] - k2[2] end
+            return kd1
         end
 
         U = DSLPQueue( CompareKey, function( s1, s2 )
@@ -306,11 +329,15 @@ function DStarLite( start, goal, followpath )
     end
 
     function ComputeShortestPath()
+        local iters = 0
+        io.write( 'START: ' )
+        DN( start )
         while U.topKey() and ( CompareKey( U.topKey(), CalculateKey( start ) ) < 0 or start.rhs > start.g ) do
+            iters = iters + 1
             local u = U.top()
             local kold = U.topKey()
             local knew = CalculateKey( u )
-            pause()
+            -- pause()
             --DN(u)
 
             if CompareKey( kold, knew ) < 0 then
@@ -371,6 +398,15 @@ function DStarLite( start, goal, followpath )
                 end
             end
         end
+        print( 'Shortest Path Iters: ', iters )
+        local st = U.stats
+        print( 'find', st.find, 'insert', st.insert, 'remove', st.remove, 'maxl', st.maxl )
+        DQ()
+        local cur = start
+        while cur do
+            DN(cur)
+            cur = cur.tree
+        end
     end
     
 
@@ -421,7 +457,28 @@ function DStarLite( start, goal, followpath )
     Main()  --not necessary probably
 end
 
-
 s = {0,0,0}
-g = {10, 20, 0}
+
+--g = {math.random(-size, size), math.random(-size,size), math.random(-size,size) }
+g = {15, 15, 0}
+
+--profiler.start()
 DStarLite( s, g, nil )
+--profiler.stop()
+
+os.exit()
+math.randomseed( os.time() )
+size = 20
+for x=-5, 5 do
+    for y = -5, 5 do
+        for z = -5, 5 do
+            g = {x, y, z}
+            if x and y and z then
+                DStarLite( s, g, nil )
+            end
+        end
+    end
+end
+--g = {math.random(-size, size), math.random(-size,size), math.random(-size,size) }
+--g = {3, 3, 0}
+--DStarLite( s, g, nil )
