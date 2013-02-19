@@ -5,80 +5,18 @@ if not math.huge then
     math.huge = 1 / 0
 end
 
+function DumpQueue(q)
+    for key, s in q.nodes() do
+        print( '['..key[1]..','..key[2]..']', s.v[1], s.v[2], s.v[3] )
+    end
+end
+
+function DumpNode(s)
+    print(  s.v[1], s.v[2], s.v[3] )
+end
+
 --/SHIM
 
---need cmp and equal for different reasons
---equal means two items are the same (in my case 
---coordinates are the same), cmp in this case needs
---to be based on DStar key values
-function PQueue( cmp, equal )
-	local q = {}
-
-    -- lower is better
-	function findtop()
-		local best, besti
-		for i in q do
-			if best then
-				if cmp( q[i], best ) < 0 then
-					best = q[i]
-					besti = i
-				end
-			else
-				best = q[i]
-				besti = i
-			end
-		end
-
-		return besti
-	end
-
-	return {
-		add = function( e )
-			table.insert( q, e )
-		end,
-
-		top = function()
-			return q[ findtop() ]
-		end,
-
-		pop = function()
-			local best = findtop()
-			return table.remove( q, findtop() )
-		end,
-
-        remove = function( e )
-            for i in q do
-                if equal( e, q[i] ) then
-                    table.remove( q, i )
-                end
-            end
-        end,
-
-		contains = function( e )
-			for i in q do
-				if equal( e, q[i] ) then
-					return true
-				end
-			end
-			return false
-		end,
-
-		len = function()
-			return table.getn(q)
-		end
-	}
-end
-
-function LinkedList()
-    local list = nil
-    local methods = {}
-    
-    methods = {
-
-    }
-
-    return methods
-end
 
 -- cmp is how we compare the keys
 -- equal is used to compare the value
@@ -87,6 +25,20 @@ function DSLPQueue( cmp, equal )
     local list = nil
 
     self = {
+
+        nodes = function()
+            local l = list
+            return function()
+                local cur = l
+                if not cur then
+                    return nil, nil
+                end
+
+                l = l.next
+                return cur.key, cur.value
+            end
+        end,
+
         insert = function( node, key )
             local l = list
             local prev = nil
@@ -254,6 +206,9 @@ function DStarLite( start, goal, followpath )
     local U, km, CalculateKey, CompareKey
     local map = NodeMap()
 
+    function DN(s) DumpNode(s) end
+    function DQ() DumpQueue( U ) end
+
     -- Koenig reverses start and goal which seems
     -- totally stupid to do in code, but to help me
     -- understand, I'm doing it too.
@@ -321,8 +276,11 @@ function DStarLite( start, goal, followpath )
         CompareKey = function( k1, k2 )
             local kd1 = k1[1] - k2[1]
 
-            if kd1 == 0 then return k1[2] - k2[2] end
-            return kd1
+            if kd1 == 0 then return k1[2] - k2[2]
+            elseif kd1 < 0 then return -1
+            else return 1
+            end
+            
         end
 
         U = DSLPQueue( CompareKey, function( s1, s2 )
@@ -353,6 +311,7 @@ function DStarLite( start, goal, followpath )
             local kold = U.topKey()
             local knew = CalculateKey( u )
             pause()
+            --DN(u)
 
             if CompareKey( kold, knew ) < 0 then
                 U.update( u, knew )
