@@ -13,7 +13,7 @@ function DumpQueue(q)
 end
 
 function DumpNode(s)
-    print(  s.v[1], s.v[2], s.v[3] )
+     print(  s.v[1], s.v[2], s.v[3] )
 end
 
 --/SHIM
@@ -24,6 +24,7 @@ end
 function DSLPQueue( cmp, equal )
     local self = {}
     local list = nil
+    local nodemap = {}
 
     self = {
 
@@ -43,9 +44,12 @@ function DSLPQueue( cmp, equal )
         insert = function( node, key )
             self.stats.find = self.stats.find + 1
             self.stats.insert = self.stats.insert + 1
+
             local l = list
             local prev = nil
             local link = {next = nil, prev = nil, value = node, key = key}
+
+            nodemap[ node ] = link
 
             local len = self.length()
             if len > self.stats.maxl then
@@ -100,23 +104,22 @@ function DSLPQueue( cmp, equal )
             self.stats.find = self.stats.find + 1
             self.stats.remove = self.stats.remove + 1
 
-            local l = list
-            while l do
-                if equal( node, l.value ) then
-                    if l.prev then
-                        l.prev.next = l.next
-                    end
-                    if l.next then
-                        l.next.prev = l.prev
-                    end
+            if nodemap[ node ] then
+                local l = nodemap[ node ]
+                nodemap[ node ] = nil
 
-                    if l == list then
-                        --removed head, have to change it
-                        list = list.next
-                    end
-                    return true
+                if l.prev then
+                    l.prev.next = l.next
                 end
-                l = l.next
+                if l.next then
+                    l.next.prev = l.prev
+                end
+
+                if l == list then
+                    --removed head, have to change it
+                    list = list.next
+                end
+                return true
             end
 
             return false
@@ -142,12 +145,16 @@ function DSLPQueue( cmp, equal )
 
         contains = function( node )
             self.stats.find = self.stats.find + 1
+            return nodemap[ node ] ~= nil
+
+            --[[
             local l = list
             while l do
                 if equal( node, l.value ) then return true end
                 l = l.next
             end
             return false
+            ]]--
         end,
 
         length = function()
@@ -242,8 +249,8 @@ function DStarLite( start, goal, followpath )
 			{s[1],     s[2] + 1, s[3]    },
 			{s[1] - 1, s[2],     s[3]    },
 			{s[1] + 1, s[2],     s[3]    },
-			--{s[1],     s[2],     s[3] + 1},
-			--{s[1],     s[2],     s[3] - 1},
+			{s[1],     s[2],     s[3] + 1},
+			{s[1],     s[2],     s[3] - 1},
 			{s[1],     s[2] - 1, s[3]    },
 		}
 
@@ -313,6 +320,7 @@ function DStarLite( start, goal, followpath )
         end)
 
         U.insert( goal, CalculateKey( goal ) )
+        map.add( goal.v, goal )
     end
 
     -- in thie middle of this one!
@@ -322,6 +330,7 @@ function DStarLite( start, goal, followpath )
         if u.g ~= u.rhs and cont then
             U.update( u, CalculateKey( u ) )
         elseif u.g ~= u.rhs and not cont then
+            map.add( u.v, u )
             U.insert( u, CalculateKey( u ) )
         elseif u.g == u.rhs and cont then
             U.remove( u )
@@ -460,11 +469,9 @@ end
 s = {0,0,0}
 
 --g = {math.random(-size, size), math.random(-size,size), math.random(-size,size) }
-g = {15, 15, 0}
+g = {10, 10, 10}
 
---profiler.start()
 DStarLite( s, g, nil )
---profiler.stop()
 
 os.exit()
 math.randomseed( os.time() )
