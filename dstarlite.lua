@@ -8,12 +8,12 @@ end
 
 function DumpQueue(q)
     for key, s in q.nodes() do
-        print( '['..key[1]..','..key[2]..']', s.v[1], s.v[2], s.v[3] )
+        print( '['..key[1]..','..key[2]..']', s.v[1], s.v[2], s.v[3], s.v[4] )
     end
 end
 
 function DumpNode(s)
-     print(  s.v[1], s.v[2], s.v[3] )
+     print(  s.v[1], s.v[2], s.v[3], s.v[4] )
 end
 
 function PrintMap(m, goal)
@@ -41,6 +41,7 @@ function PrintMap(m, goal)
     end
 
     local z = 0
+    local dirs = {[0] = '^', '>', 'v', '<'}
     for y = maxy, miny, -1 do
         if y == maxy then
             io.write( '  ' )
@@ -52,7 +53,16 @@ function PrintMap(m, goal)
         end
 
         for x = minx, maxx do
-            local n = m.get( {x, y, z} )
+            local n, pn = nil, nil
+            for d=0, 3 do
+                pn = m.get( {x, y, z, d} )
+                if pn then
+                    n = pn
+                    if path[ pn ] then
+                        break
+                    end
+                end
+            end
 
             if x == minx then
                 local c = math.mod( math.abs( y ), 10 )
@@ -64,11 +74,11 @@ function PrintMap(m, goal)
                 if n.g == math.huge then
                     c = '!'
                 else
-                    c = math.mod( n.g, 10 )
+                    c = math.mod( math.floor(n.g), 10 )
                 end
 
                 if path[ n ] then
-                    c = '*'
+                    c = dirs[ n.v[4] ]
                 end
 
                 io.write( c )
@@ -246,14 +256,17 @@ function NodeMap()
 			if nodes[ n[1] ][ n[2] ] == nil then
 				nodes[ n[1] ][ n[2] ] = {}
 			end
+			if nodes[ n[1] ][ n[2] ][ n[3] ] == nil then
+				nodes[ n[1] ][ n[2] ][ n[3] ] = {}
+			end
 
-			nodes[ n[1] ][ n[2] ][ n[3] ] = val
+			nodes[ n[1] ][ n[2] ][ n[3] ][ n[4] ] = val
 		end,
 		hasKey = function( n )
 			return self.get( n ) ~= nil
 		end,
 		remove = function( n )
-			nodes[ n[1] ][ n[2] ][ n[3] ] = nil
+			nodes[ n[1] ][ n[2] ][ n[3] ][ n[4] ] = nil
 			--yep, nodes grows with containers forever
 		end,
 
@@ -261,6 +274,7 @@ function NodeMap()
 			return nodes[ n[1] ]
 				and nodes[ n[1] ][ n[2] ]
 				and nodes[ n[1] ][ n[2] ][ n[3] ]
+				and nodes[ n[1] ][ n[2] ][ n[3] ][ n[4] ]
 		end,
 
         each = function()
@@ -268,7 +282,9 @@ function NodeMap()
             for xi, x in pairs( nodes ) do
                 for yi, y in pairs( x ) do
                     for zi, z in pairs( y ) do
-                        table.insert( fnodes, z )
+                        for di, d in pairs( z ) do
+                            table.insert( fnodes, d )
+                        end
                     end
                 end
             end
@@ -322,13 +338,22 @@ function DStarLite( start, goal, followpath )
     function Succ( s )
         -- TODO: Randomize this.  I think it helps.
         s = s.v
+        local r = { [0]=1, 2, 3, 0}
+        local l = { [0]=3, 0, 1, 2}
+        local dx, dy = 0, 0
+        if s[4] == 0 or s[4] == 2 then
+            dy = 1
+        else
+            dx = 1
+        end
+
         local vertices = {
-			{s[1],     s[2] + 1, s[3]    },
-			{s[1] - 1, s[2],     s[3]    },
-			{s[1] + 1, s[2],     s[3]    },
-			--{s[1],     s[2],     s[3] + 1},
-			--{s[1],     s[2],     s[3] - 1},
-			{s[1],     s[2] - 1, s[3]    },
+			{s[1] + dx, s[2] + dy, s[3],      s[4]     }, -- move north or east
+			{s[1] - dx, s[2] - dy, s[3],      s[4]     }, -- move south or west
+			{s[1],      s[2],      s[3] + 1,  s[4]     }, -- move up
+			{s[1],      s[2],      s[3] - 1,  s[4]     }, -- move down
+			{s[1],      s[2],      s[3],      l[ s[4] ]},  -- turn left
+			{s[1],      s[2],      s[3],      r[ s[4] ]},  -- turn right
 		}
 
         local nodes = {}
@@ -364,7 +389,25 @@ function DStarLite( start, goal, followpath )
     end
 
     function Cost( s, sn )
-        return Distance( s.v, sn.v )
+        local reverse = 0
+        if s.v[4] ~= sn.v[4] then
+            -- turning is cheap but not free (takes time, not fuel)
+            return .2
+        end
+
+        --include a penalty for driving in reverse (for looks)
+        local dv = {s.v[1] - sn.v[1], s.v[2] - sn.v[2]}
+        if dv[1] < 0  and s.v[4] == 1 then
+            reverse = .1
+        elseif dv[2] < 0 and s.v[4] == 0 then
+            reverse = .1
+        elseif dv[2] > 0 and s.v[4] == 2 then
+            reverse = .1
+        elseif dv[1] > 0 and s.v[4] == 3 then
+            reverse = .1
+        end
+
+        return Distance( s.v, sn.v ) + reverse
     end
 
     function MakeKeyCalculator( start, h )
@@ -394,6 +437,7 @@ function DStarLite( start, goal, followpath )
             return s1.v[1] == s2.v[1]
                 and s1.v[2] == s2.v[2]
                 and s1.v[3] == s2.v[3]
+                and s1.v[4] == s2.v[4]
         end)
 
         U.insert( goal, CalculateKey( goal ) )
@@ -546,10 +590,10 @@ function DStarLite( start, goal, followpath )
     Main()  --not necessary probably
 end
 
-s = {0,0,0}
+s = {0,0,0,0}
 
 --g = {math.random(-size, size), math.random(-size,size), math.random(-size,size) }
-g = {50, 50, 0}
+g = {5, 30, 0, 0}
 
 DStarLite( s, g, nil )
 
