@@ -16,6 +16,70 @@ function DumpNode(s)
      print(  s.v[1], s.v[2], s.v[3] )
 end
 
+function PrintMap(m, goal)
+    local minx, miny, maxx, maxy = math.huge, math.huge, -math.huge, -math.huge
+
+    for i, n in m.each() do
+        if n.v[1] < minx then
+            minx = n.v[1]
+        end
+        if n.v[1] > maxx then
+            maxx = n.v[1]
+        end
+        if n.v[2] < miny then
+            miny = n.v[2]
+        end
+        if n.v[2] > maxy then
+            maxy = n.v[2]
+        end
+    end
+
+    local path = {}
+    while goal do
+        path[ goal ] = true
+        goal = goal.tree
+    end
+
+    local z = 0
+    for y = maxy, miny, -1 do
+        if y == maxy then
+            io.write( '  ' )
+            for x = minx, maxx do
+                local c = math.mod( math.abs( x ), 10 )
+                io.write( c )
+            end
+            io.write( '\n\n' )
+        end
+
+        for x = minx, maxx do
+            local n = m.get( {x, y, z} )
+
+            if x == minx then
+                local c = math.mod( math.abs( y ), 10 )
+                io.write( c..' ' )
+            end
+
+            if n then
+                local c = '0'
+                if n.g == math.huge then
+                    c = '!'
+                else
+                    c = math.mod( n.g, 10 )
+                end
+
+                if path[ n ] then
+                    c = '*'
+                end
+
+                io.write( c )
+            else
+                io.write( ' ' )
+            end
+        end
+        io.write( '\n' )
+    end
+end
+
 --/SHIM
 
 
@@ -198,6 +262,19 @@ function NodeMap()
 				and nodes[ n[1] ][ n[2] ]
 				and nodes[ n[1] ][ n[2] ][ n[3] ]
 		end,
+
+        each = function()
+            local fnodes = {}
+            for xi, x in pairs( nodes ) do
+                for yi, y in pairs( x ) do
+                    for zi, z in pairs( y ) do
+                        table.insert( fnodes, z )
+                    end
+                end
+            end
+
+            return ipairs( fnodes )
+        end,
 	}
 
     return self
@@ -249,8 +326,8 @@ function DStarLite( start, goal, followpath )
 			{s[1],     s[2] + 1, s[3]    },
 			{s[1] - 1, s[2],     s[3]    },
 			{s[1] + 1, s[2],     s[3]    },
-			{s[1],     s[2],     s[3] + 1},
-			{s[1],     s[2],     s[3] - 1},
+			--{s[1],     s[2],     s[3] + 1},
+			--{s[1],     s[2],     s[3] - 1},
 			{s[1],     s[2] - 1, s[3]    },
 		}
 
@@ -411,11 +488,14 @@ function DStarLite( start, goal, followpath )
         local st = U.stats
         print( 'find', st.find, 'insert', st.insert, 'remove', st.remove, 'maxl', st.maxl )
         DQ()
-        local cur = start
-        while cur do
-            DN(cur)
-            cur = cur.tree
-        end
+        --local cur = start
+        --while cur do
+        --    DN(cur)
+        --    cur = cur.tree
+        --end
+
+        print( 'Known nodes' )
+        PrintMap( map, start )
     end
     
 
@@ -469,7 +549,7 @@ end
 s = {0,0,0}
 
 --g = {math.random(-size, size), math.random(-size,size), math.random(-size,size) }
-g = {10, 10, 10}
+g = {50, 50, 0}
 
 DStarLite( s, g, nil )
 
