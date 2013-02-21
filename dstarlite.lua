@@ -104,153 +104,132 @@ end
 
 -- cmp is how we compare the keys
 -- equal is used to compare the value
+-- TODO: a nicety of this would be if all functions returning a value
+--      returned their key also
 function DSLPQueue( cmp, equal )
     local self = {}
-    local list = nil
     local nodemap = {}
+    local heap = {}
+    local next = 1
+
+    function swap( i1, i2 )
+        heap[ i1 ].idx, heap[ i2 ].idx = i2, i1
+        heap[ i1 ], heap[ i2 ] = heap[ i2 ], heap[ i1 ]
+        --if next > i1 and next > i2 then
+        --end
+    end
+
+    function percolateDown( i )
+        local li, ri = 2 * i, 2 * i + 1
+        local left, right = heap[ li ], heap[ ri ]
+        local cur = heap[ i ]
+        local smallest = i
+
+        if li < next and cmp( left.key, heap[ smallest ].key ) < 0 then
+            smallest = li
+        end
+
+        if ri < next and cmp( right.key, heap[ smallest ].key ) < 0 then
+            smallest = ri
+        end
+
+        if smallest ~= i then
+            swap( i, smallest )
+            percolateDown( smallest )
+        end
+    end
 
     self = {
 
         nodes = function()
-            local l = list
+            local i = 1
             return function()
-                local cur = l
-                if not cur then
-                    return nil, nil
-                end
-
-                l = l.next
-                return cur.key, cur.value
+                local v = heap[ i ]
+                if v == nil then return nil end
+                i = i + 1
+                return v.key, v.value
             end
         end,
 
-        insert = function( node, key )
+        insert = function( val, key )
+            self.stats.maxl = math.max( self.stats.maxl, next )
+
             local now = socket.gettime()
-            self.stats.find = self.stats.find + 1
             self.stats.insert = self.stats.insert + 1
 
-            local l = list
-            local prev = nil
-            local link = {next = nil, prev = nil, value = node, key = key}
+            local node = {key = key, value = val, idx = next}
+            nodemap[ val ] = node
 
-            nodemap[ node ] = link
-
-            local len = self.length()
-            if len > self.stats.maxl then
-                self.stats.maxl = len
-            end
-
-            while l do
-                if cmp( key, l.key ) <= 0 then
-                    if l.prev then
-                        link.prev = l.prev
-                        l.prev.next = link
-                    end
-                    l.prev = link
-                    link.next = l
-
-                    if l == list then list = link end
-
-                    updateTime = updateTime + ( socket.gettime() - now )
-
-                    return
+            heap[ next ] = node
+            local i, pi = next, math.floor( next / 2 )
+            next = next + 1
+            while pi > 0 do
+                if cmp( key, heap[ pi ].key ) < 0 then
+                    swap( pi, i )
+                    i, pi = pi, math.floor( i / 2 )
+                else
+                    break
                 end
-                prev = l
-                l = l.next
             end
 
-            if prev then
-                prev.next = link
-                link.prev = prev
-            else
-                list = link
-            end
             updateTime = updateTime + ( socket.gettime() - now )
         end,
 
+        -- TODO: replace this with percolation
         update = function( node, key )
+            self.stats.update = self.stats.update + 1
             if self.remove( node ) then
                 self.insert( node, key )
             end
-
-            --[[
-            local l = list
-            while l do
-                if equal( node, l.value ) then
-                    l.key = key
-                    self.remove(
-                    return
-                end
-
-                l = l.next
-            end
-            ]]--
         end,
 
-        remove = function( node )
-            self.stats.find = self.stats.find + 1
+        remove = function ( val )
             self.stats.remove = self.stats.remove + 1
 
-            if nodemap[ node ] then
-                local l = nodemap[ node ]
-                nodemap[ node ] = nil
+            if next == 1 then return nil end
+            if nodemap[ val ] == nil then return nil end
+            local node = nodemap[ val ]
+            nodemap[ val ] = nil
 
-                if l.prev then
-                    l.prev.next = l.next
-                end
-                if l.next then
-                    l.next.prev = l.prev
-                end
-
-                if l == list then
-                    --removed head, have to change it
-                    list = list.next
-                end
-                return true
+            next = next - 1
+            if next == 1 then
+                heap[ next ] = nil
+                return val
             end
+            local now = socket.gettime()
 
-            return false
+            local i = node.idx -- gets changed by swap
+            swap( node.idx, next )
+            heap[ next ] = nil
+
+            percolateDown( i )
+            removeTime = removeTime + ( socket.gettime() - now )
+            return val
         end,
 
         top = function()
-            return list and list.value
+            return heap[1] and heap[1].value
         end,
 
         topKey = function()
-            return list and list.key
+            return heap[1] and heap[1].key
         end,
 
         pop = function()
-            local value = list.value
-            if value then
-                self.remove( value )
+            if heap[1] then
+                return self.remove( heap[1].value )
             end
-            return value
+            return nil
         end,
 
-        stats = { find = 0, insert = 0, remove = 0, maxl = 0},
+        stats = {  update = 0, insert = 0, remove = 0, maxl = 0},
 
         contains = function( node )
-            self.stats.find = self.stats.find + 1
             return nodemap[ node ] ~= nil
-
-            --[[
-            local l = list
-            while l do
-                if equal( node, l.value ) then return true end
-                l = l.next
-            end
-            return false
-            ]]--
         end,
 
         length = function()
-            local i, l = 0, list
-            while l do
-                l = l.next
-                i = i + 1
-            end
-            return i
+            return next - 1
         end,
     }
 
@@ -388,8 +367,8 @@ function DStarLite( start, goal, map )
         local vertices = {
 			{s[1] + dx, s[2] + dy, s[3],      s[4]     }, -- move north or east
 			{s[1] - dx, s[2] - dy, s[3],      s[4]     }, -- move south or west
-			-- {s[1],      s[2],      s[3] + 1,  s[4]     }, -- move up
-			-- {s[1],      s[2],      s[3] - 1,  s[4]     }, -- move down
+			{s[1],      s[2],      s[3] + 1,  s[4]     }, -- move up
+			{s[1],      s[2],      s[3] - 1,  s[4]     }, -- move down
 			{s[1],      s[2],      s[3],      l[ s[4] ]},  -- turn left
 			{s[1],      s[2],      s[3],      r[ s[4] ]},  -- turn right
 		}
@@ -584,7 +563,7 @@ function DStarLite( start, goal, map )
         end
         print( 'Shortest Path Iters: ', iters )
         local st = U.stats
-        print( 'find', st.find, 'insert', st.insert, 'remove', st.remove, 'maxl', st.maxl )
+        print( 'update', st.update, 'insert', st.insert, 'remove', st.remove, 'maxl', st.maxl )
         DQ()
         --local cur = start
         --while cur do
@@ -646,10 +625,10 @@ end
 
 s = {0,0,0,0}
 
---g = {math.random(-size, size), math.random(-size,size), math.random(-size,size) }
-g = {18, 18, 0, 0}
+g = {15, 15, 0, 0}
 
 updateTime = 0
+removeTime = 0
 require "socket"
 
 local map = NodeMap()
@@ -669,9 +648,12 @@ for i=0, 500 do
     map.add( n.v, n )
 end
 
+--profiler.start( 'dstarlite.prof' )
 DStarLite( s, g, nil )
+--profiler.stop()
 
 print( 'Total time in DSLPQueue.insert: ', updateTime )
+print( 'Total time in DSLPQueue.remove: ', removeTime )
 
 os.exit()
 math.randomseed( os.time() )
