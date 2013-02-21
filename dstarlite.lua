@@ -16,7 +16,7 @@ function DumpNode(s)
      print(  s.v[1], s.v[2], s.v[3], s.v[4] )
 end
 
-function PrintMap(m, goal)
+function PrintMap(m, goal, start)
     local minx, miny, maxx, maxy = math.huge, math.huge, -math.huge, -math.huge
 
     for i, n in m.each() do
@@ -39,6 +39,7 @@ function PrintMap(m, goal)
         path[ goal ] = true
         goal = goal.tree
     end
+    path[ start ] = true -- temporary hack - seems like start should already be there
 
     local z = 0
     local dirs = {[0] = '^', '>', 'v', '<'}
@@ -71,7 +72,9 @@ function PrintMap(m, goal)
 
             if n then
                 local c = '0'
-                if n.g == math.huge then
+                if n.cost == math.huge then
+                    c = '#'
+                elseif n.g == math.huge then
                     c = '!'
                 else
                     c = math.mod( math.floor(n.g), 10 )
@@ -79,6 +82,12 @@ function PrintMap(m, goal)
 
                 if path[ n ] then
                     c = dirs[ n.v[4] ]
+                end
+
+                if n == start then
+                    c = 'X'
+                elseif n == goal then
+                    c = 'S'
                 end
 
                 io.write( c )
@@ -116,6 +125,7 @@ function DSLPQueue( cmp, equal )
         end,
 
         insert = function( node, key )
+            local now = socket.gettime()
             self.stats.find = self.stats.find + 1
             self.stats.insert = self.stats.insert + 1
 
@@ -141,6 +151,8 @@ function DSLPQueue( cmp, equal )
 
                     if l == list then list = link end
 
+                    updateTime = updateTime + ( socket.gettime() - now )
+
                     return
                 end
                 prev = l
@@ -153,6 +165,7 @@ function DSLPQueue( cmp, equal )
             else
                 list = link
             end
+            updateTime = updateTime + ( socket.gettime() - now )
         end,
 
         update = function( node, key )
@@ -248,8 +261,24 @@ function NodeMap()
 	local nodes = {}
 	local self
 
+    function tcopy(t)
+        tt = {}
+        for k,v in pairs(t) do
+            tt[ k ] = v
+        end
+        return tt
+    end
+
 	self = {
-		add = function( n, val )
+		add = function( n, val, noexpand )
+            if val.cost and val.cost == math.huge and not noexpand then
+                n = tcopy( n )
+                for d = 0, 3 do
+                    n[4] = d
+                    self.add( n, val, true )
+                end
+                return
+            end
 			if nodes[ n[1] ] == nil then
 				nodes[ n[1] ] = {}
 			end
@@ -303,8 +332,15 @@ function Node( v )
         g = math.huge,
         tree = nil,
         real = false,
+        cost = 1,
         v = v
     }
+end
+
+function Obstacle( v )
+    local n = Node( v )
+    n.cost = math.huge
+    return n
 end
 
 function Distance( a, b )
@@ -319,9 +355,12 @@ function TrueDistance( a, b )
     return math.sqrt( hyp * hyp + d3 * d3 )
 end
 
-function DStarLite( start, goal, followpath )
+function DStarLite( start, goal, map )
     local U, km, CalculateKey, CompareKey
-    local map = NodeMap()
+
+    if map == nil then
+        map = NodeMap()
+    end
 
     function DN(s) DumpNode(s) end
     function DQ() DumpQueue( U ) end
@@ -334,7 +373,6 @@ function DStarLite( start, goal, followpath )
 
     last = nil
 
-    map.add( start.v, start )
     function Succ( s )
         -- TODO: Randomize this.  I think it helps.
         s = s.v
@@ -350,8 +388,8 @@ function DStarLite( start, goal, followpath )
         local vertices = {
 			{s[1] + dx, s[2] + dy, s[3],      s[4]     }, -- move north or east
 			{s[1] - dx, s[2] - dy, s[3],      s[4]     }, -- move south or west
-			{s[1],      s[2],      s[3] + 1,  s[4]     }, -- move up
-			{s[1],      s[2],      s[3] - 1,  s[4]     }, -- move down
+			-- {s[1],      s[2],      s[3] + 1,  s[4]     }, -- move up
+			-- {s[1],      s[2],      s[3] - 1,  s[4]     }, -- move down
 			{s[1],      s[2],      s[3],      l[ s[4] ]},  -- turn left
 			{s[1],      s[2],      s[3],      r[ s[4] ]},  -- turn right
 		}
@@ -367,6 +405,7 @@ function DStarLite( start, goal, followpath )
             if not n then
                 n = Node( vertices[i] )
             end
+
             table.insert( nodes, n )
             i = i + diff
         end
@@ -382,17 +421,32 @@ function DStarLite( start, goal, followpath )
         return Succ( s )
     end
 
+    --s2 is current... at least now
     function Heuristic( s1, s2 )
-        return TrueDistance( s1.v, s2.v )
+        local dx1 = s2.v[1] - goal.v[1]
+        local dy1 = s2.v[2] - goal.v[2]
+        local dz1 = s2.v[3] - goal.v[3]
+        local dx2 = start.v[1] - goal.v[1]
+        local dy2 = start.v[2] - goal.v[2]
+        local dz2 = start.v[3] - goal.v[3]
+
+        local cross = math.abs( dx1 * dy2 - dx2 * dy1 )
+        cross = cross + math.abs( dx1 * dz2 - dx2 * dz1 )
+
+        -- the cross product nudging needs to be small enough to not
+        -- encourage the turtle to turn a lot, but big enough
+        -- to reduce expanded nodes.
+        return TrueDistance( s1.v, s2.v ) + cross * .05
         -- I think for this to be feasible, I need to randomize vertices
         --return Distance( s1.v, s2.v )
     end
 
     function Cost( s, sn )
         local reverse = 0
+
         if s.v[4] ~= sn.v[4] then
             -- turning is cheap but not free (takes time, not fuel)
-            return .2
+            return .5
         end
 
         --include a penalty for driving in reverse (for looks)
@@ -407,7 +461,7 @@ function DStarLite( start, goal, followpath )
             reverse = .1
         end
 
-        return Distance( s.v, sn.v ) + reverse
+        return Distance( s.v, sn.v ) + reverse + sn.cost
     end
 
     function MakeKeyCalculator( start, h )
@@ -442,9 +496,9 @@ function DStarLite( start, goal, followpath )
 
         U.insert( goal, CalculateKey( goal ) )
         map.add( goal.v, goal )
+        map.add( start.v, start )
     end
 
-    -- in thie middle of this one!
     function UpdateVertex( u )
         local cont = U.contains( u )
 
@@ -539,7 +593,7 @@ function DStarLite( start, goal, followpath )
         --end
 
         print( 'Known nodes' )
-        PrintMap( map, start )
+        PrintMap( map, start, goal )
     end
     
 
@@ -593,9 +647,31 @@ end
 s = {0,0,0,0}
 
 --g = {math.random(-size, size), math.random(-size,size), math.random(-size,size) }
-g = {5, 30, 0, 0}
+g = {18, 18, 0, 0}
+
+updateTime = 0
+require "socket"
+
+local map = NodeMap()
+
+for i=-5, 20 do
+    n = Obstacle( {i, 5, 0, 0} )
+    map.add( n.v, n )
+end
+for i=0, 500 do
+    n = {
+        math.floor( 2*g[1] * math.random() - g[1] ),
+        math.floor( 2*g[2] * math.random() - g[2] ),
+        math.floor( 2*g[3] * math.random() - g[3] ),
+        0
+    }
+    n = Obstacle( n )
+    map.add( n.v, n )
+end
 
 DStarLite( s, g, nil )
+
+print( 'Total time in DSLPQueue.insert: ', updateTime )
 
 os.exit()
 math.randomseed( os.time() )
