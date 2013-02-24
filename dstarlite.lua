@@ -322,6 +322,16 @@ function Obstacle( v )
     return n
 end
 
+--helper function, because to make a node blocked I have
+--to show it blocked in all "direction" dimensions...
+--I don't like that, I need a better map structure.
+function insertObstacle( v, map )
+    for dir = 0, 3 do
+        local node = Obstacle( {v[1], v[2], v[3], dir} )
+        map.add( node.v, node )
+    end
+end
+
 function Distance( a, b )
     return math.abs( a[1] - b[1] )
         + math.abs( a[2] - b[2] )
@@ -367,8 +377,8 @@ function DStarLite( start, goal, map )
         local vertices = {
 			{s[1] + dx, s[2] + dy, s[3],      s[4]     }, -- move north or east
 			{s[1] - dx, s[2] - dy, s[3],      s[4]     }, -- move south or west
-			{s[1],      s[2],      s[3] + 1,  s[4]     }, -- move up
-			{s[1],      s[2],      s[3] - 1,  s[4]     }, -- move down
+			--{s[1],      s[2],      s[3] + 1,  s[4]     }, -- move up
+			--{s[1],      s[2],      s[3] - 1,  s[4]     }, -- move down
 			{s[1],      s[2],      s[3],      l[ s[4] ]},  -- turn left
 			{s[1],      s[2],      s[3],      r[ s[4] ]},  -- turn right
 		}
@@ -398,6 +408,20 @@ function DStarLite( start, goal, map )
 
     function Pred( s )
         return Succ( s )
+    end
+
+    function updaterhs( n )
+        n.rhs = math.huge
+        n.tree = nil
+        for s in Succ( n ) do
+            local cost = Cost( n, s )
+            if n.rhs > s.g + cost then
+                n.rhs = s.g + cost
+                n.tree = s
+            end
+        end
+
+        UpdateVertex( n )
     end
 
     --s2 is current... at least now
@@ -525,42 +549,20 @@ function DStarLite( start, goal, map )
                     end
                 end
             else
+                --pause()
                 local gold = u.g
                 u.g = math.huge
                 UpdateVertex( u )
 
                 for s in Pred( u ) do
 
-                    if Distance( s.v, goal.v ) ~= 0 and s.tree == u then
-
-                        -- this kind of book keeping might be why
-                        -- they did an updaterhs() func.
-                        s.tree = nil
-                        s.rhs = math.huge
-
-                        --NOT SURE - the s.tree == u thing is in
-                        --dstarlite.c:338. I think it has something to do
-                        --with only looking at predecessors along the
-                        --robots path or something.
-
-                        -- this if seems to be in the pseudocode but
-                        -- nothing like it in the c...
-                        -- if s.rhs == Cost( s, u ) + gold then
-
-                            for s2 in Succ( s ) do
-                                local mayberhs = Cost( s, s2 ) + s2.g
-                                if s.rhs > mayberhs then
-                                    s.rhs = mayberhs
-                                    s.tree = s2
-                                end
-                            end
-
-                            UpdateVertex( s )
-                        --end
+                    if Distance( s.v, goal.v ) > 0 and s.tree == u then
+                        updaterhs( s )
                     end
                 end
             end
         end
+        --[[
         print( 'Shortest Path Iters: ', iters )
         local st = U.stats
         print( 'update', st.update, 'insert', st.insert, 'remove', st.remove, 'maxl', st.maxl )
@@ -573,46 +575,103 @@ function DStarLite( start, goal, map )
 
         print( 'Known nodes' )
         PrintMap( map, start, goal )
+        --]]
+
+        local path = {}
+        local cur = start
+        while cur do
+            table.insert( path, cur )
+            cur = cur.tree
+        end
+
+        local len = table.getn( path )
+        for i=1, math.floor( len / 2 ) do
+            path[ i ], path[ len - i + 1 ] = path[ len - i + 1 ], path[ i ]
+        end
+
+        return path
     end
     
 
     function Main()
 
-        last = start
+        last = goal
         Initialize()
-        ComputeShortestPath()
 
-        print( start )
-        do return end
+        while start and Distance( start.v, goal.v ) > 0 do
 
-        while Distance( start.v, goal.v ) > 0 do
+            local path = ComputeShortestPath()
+
             -- if start.rhs == infinity there is no known path=
 
             --TODO make a function for this
+            --[[
             local min = nil
             local mins = nil
             local curMin = nil
-            for s in Succ( start ) do
-                curMin = Cost( start, s ) + s.g
+            for s in Succ( goal ) do
+                curMin = Cost( goal, s ) + s.g
                 if not mins or curMin < min then
                     mins = s
                     min = curMin
                 end
             end
-            start = mins
+            goal = mins
+            --]]
 
-            -- move to start
+            DN( goal )
+            -- move to goal
             -- t( moveTo, s ) ish
-            -- look for changes (i.e. was I able to move to start
+            -- look for changes (i.e. was I able to move to goal
 
-            if not 'able to move to s' then
-                km = km + Heuristic( last, start )
-                last = start
-
-                -- for all edges (u,v) with new edge cost
-                -- update edge cost c(u,v) - I'm not sure what that means
-
+            pause()
+            local len = table.getn( path )
+            local lasti = nil
+            for i=1, len do
+                local n = path[ i ]
+                DN( n )
+                if math.random() < 0.1 then
+                    -- obstacle
+                    print( 'obstacle' )
+                    map.remove( n.v )
+                    insertObstacle( n.v, map )
+                    break
+                end
+                lasti = i
+                goal = path[ lasti ]
             end
+
+            pause()
+            --[[
+            pause()
+            while goal do
+                DN(goal)
+                --if goal.tree and goal.tree.
+                goal = goal.tree
+            end
+            --]]
+
+            if Distance( start.v, goal.v ) > 0 then
+                km = km + Heuristic( last, goal )
+                last = goal
+
+                for i = lasti, 1, -1 do
+                    for n in Succ( path[ i ] ) do
+                        for nn in Succ( n ) do
+                            pause()
+                            if Distance( start.v, nn.v ) > 0 then
+                                updaterhs( nn )
+                            end
+                        end
+
+                        if Distance( n.v, start.v ) > 0 then
+                            n.rhs = math.huge
+                            UpdateVertex( n )
+                        end
+                    end
+                end
+            end
+            pause()
         end
         -- drive until you hit something
         -- for all edges (u, v) with changed cost
@@ -625,7 +684,7 @@ end
 
 s = {0,0,0,0}
 
-g = {15, 15, 0, 0}
+g = {4, 4, 0, 0}
 
 updateTime = 0
 removeTime = 0
@@ -647,6 +706,7 @@ for i=0, 500 do
     n = Obstacle( n )
     map.add( n.v, n )
 end
+
 
 --profiler.start( 'dstarlite.prof' )
 DStarLite( s, g, nil )
