@@ -2,18 +2,30 @@
 
 require( 'debugger' )
 require( 'profiler' )
+_inspect = require( 'inspect' )
+inspect = function( ... )
+    print( _inspect( unpack( arg ) ) )
+end
+
 if not math.huge then
     math.huge = 1 / 0
 end
 
 function DumpQueue(q)
+    local i = 1
     for key, s in q.nodes() do
-        print( '['..key[1]..','..key[2]..']', s.v[1], s.v[2], s.v[3], s.v[4] )
+        print( i..': '..'['..key[1]..','..key[2]..']', s.v[1], s.v[2], s.v[3], s.v[4] )
+        i = i + 1
     end
 end
 
 function DumpNode(s)
      print(  s.v[1], s.v[2], s.v[3], s.v[4] )
+end
+
+function dlog( ... )
+    if not verbose then return end
+    inspect( unpack( arg ) )
 end
 
 function PrintMap(m, goal, start)
@@ -34,6 +46,7 @@ function PrintMap(m, goal, start)
         end
     end
 
+    local robotNode = goal
     local path = {}
     while goal do
         path[ goal ] = true
@@ -77,11 +90,18 @@ function PrintMap(m, goal, start)
                 elseif n.g == math.huge then
                     c = '!'
                 else
-                    c = math.mod( math.floor(n.g), 10 )
+                    --c = math.mod( math.floor(n.g), 10 )
+                    c = '.'
                 end
 
                 if path[ n ] then
-                    c = dirs[ n.v[4] ]
+                    if n.cost == math.huge then
+                        c = '%'
+                    elseif n == robotNode then
+                        c = 'T'
+                    else
+                        c = dirs[ n.v[4] ]
+                    end
                 end
 
                 if n == start then
@@ -152,6 +172,12 @@ function DSLPQueue( cmp, equal )
         end,
 
         insert = function( val, key )
+            if key[1] == math.huge and key[2] == math.huge then --and u.v[1] == 0 and u.v[2] == 1 then
+                --srslyPause()
+            end
+            if val.v[1] == 1 and val.v[2] == 0 then
+                --srslyPause()
+            end
             self.stats.maxl = math.max( self.stats.maxl, next )
 
             local now = socket.gettime()
@@ -166,7 +192,7 @@ function DSLPQueue( cmp, equal )
             while pi > 0 do
                 if cmp( key, heap[ pi ].key ) < 0 then
                     swap( pi, i )
-                    i, pi = pi, math.floor( i / 2 )
+                    i, pi = pi, math.floor( pi / 2 )
                 else
                     break
                 end
@@ -245,12 +271,15 @@ function NodeMap()
         for k,v in pairs(t) do
             tt[ k ] = v
         end
+
+        --TODO: i need a deep copy function.
+        tt.v = {tt.v[1], tt.v[2], tt.v[3], tt.v[4]}
         return tt
     end
 
 	self = {
 		add = function( n, val, noexpand )
-            if val.cost and val.cost == math.huge and not noexpand then
+            if false and val.cost and val.cost == math.huge and not noexpand then
                 n = tcopy( n )
                 for d = 0, 3 do
                     n[4] = d
@@ -310,9 +339,10 @@ function Node( v )
         rhs = math.huge,
         g = math.huge,
         tree = nil,
-        real = false,
+        findseq = 0,
         cost = 1,
-        v = v
+        oldcost = 1,
+        v = {v[1], v[2], v[3], v[4]}
     }
 end
 
@@ -325,10 +355,24 @@ end
 --helper function, because to make a node blocked I have
 --to show it blocked in all "direction" dimensions...
 --I don't like that, I need a better map structure.
-function insertObstacle( v, map )
+-- Needs to remove existing nodes, and replace *all*
+-- directions with the new obstacle.  If there was a
+-- node already, its RHS etc. values need to be maintained.
+function makeObstacle( v, map, seq )
     for dir = 0, 3 do
-        local node = Obstacle( {v[1], v[2], v[3], dir} )
-        map.add( node.v, node )
+        local ov = {v[1], v[2], v[3], dir}
+        local existing = map.get( ov )
+        if existing then
+            existing.oldcost = existing.cost
+            existing.cost = math.huge
+            --for s in Succ( existing ) do
+            --    if s.tree == existing then
+            --    end
+            --end
+        else
+            local node = Obstacle( ov )
+            map.add( node.v, node )
+        end
     end
 end
 
@@ -374,6 +418,10 @@ function DStarLite( start, goal, map )
             dx = 1
         end
 
+        if verbose then
+            pause()
+        end
+
         local vertices = {
 			{s[1] + dx, s[2] + dy, s[3],      s[4]     }, -- move north or east
 			{s[1] - dx, s[2] - dy, s[3],      s[4]     }, -- move south or west
@@ -383,6 +431,13 @@ function DStarLite( start, goal, map )
 			{s[1],      s[2],      s[3],      r[ s[4] ]},  -- turn right
 		}
 
+        local vertices = {
+			{s[1]+1, s[2], s[3],s[4]},
+			{s[1]-1, s[2], s[3],s[4]},
+			{s[1], s[2]+1, s[3],s[4]},
+			{s[1], s[2]-1, s[3],s[4]},
+		}
+
         local nodes = {}
         local i, diff = 1, 1
         if math.random() > .5 then
@@ -390,8 +445,12 @@ function DStarLite( start, goal, map )
             diff = -1
         end
         while vertices[i] do
+            if verbose then
+                dlog( vertices )
+            end
             local n = map.get( vertices[i] )
             if not n then
+
                 n = Node( vertices[i] )
             end
 
@@ -421,6 +480,15 @@ function DStarLite( start, goal, map )
             end
         end
 
+        if n.tree and n.tree.tree == n then
+            -- oopsies, infinite loop.
+            -- Well, it looks like that may not be the case
+            -- Because a later call to updaterhs may fix it
+            -- It's hard to comprehend a proof that will happen...
+            -- So.  Keep an eye out.
+            -- srslyPause()
+        end
+
         UpdateVertex( n )
     end
 
@@ -439,9 +507,9 @@ function DStarLite( start, goal, map )
         -- the cross product nudging needs to be small enough to not
         -- encourage the turtle to turn a lot, but big enough
         -- to reduce expanded nodes.
-        return TrueDistance( s1.v, s2.v ) + cross * .05
+        --return TrueDistance( s1.v, s2.v ) + cross * .05
         -- I think for this to be feasible, I need to randomize vertices
-        --return Distance( s1.v, s2.v )
+        return Distance( s1.v, s2.v ) + cross * .000001
     end
 
     function Cost( s, sn )
@@ -464,24 +532,28 @@ function DStarLite( start, goal, map )
             reverse = .1
         end
 
-        return Distance( s.v, sn.v ) + reverse + sn.cost
+        reverse=0
+        --return Distance( s.v, sn.v ) + reverse + sn.cost
+        return ( sn.cost + s.cost ) / 2
     end
 
-    function MakeKeyCalculator( start, h )
+    function MakeKeyCalculator( h )
         return function( s )
             --for k in s do print( k ) end
             --print( 'DOING', s, s.g, s.rhs )
             local k2 = math.min( s.g, s.rhs )
-            return { k2 + h( start, s ) + km, k2 }
+            return { k2 + h( goal, s ) + km, k2 }
         end
     end
     
     function Initialize()
 
         km = 0
-        goal.rhs = 0
 
-        CalculateKey = MakeKeyCalculator( start, Heuristic )
+        start.g = math.huge
+        start.rhs = 0
+
+        CalculateKey = MakeKeyCalculator( Heuristic )
 
         CompareKey = function( k1, k2 )
             local kd1 = k1[1] - k2[1]
@@ -497,7 +569,7 @@ function DStarLite( start, goal, map )
                 and s1.v[4] == s2.v[4]
         end)
 
-        U.insert( goal, CalculateKey( goal ) )
+        U.insert( start, CalculateKey( start ) )
         map.add( goal.v, goal )
         map.add( start.v, start )
     end
@@ -517,14 +589,17 @@ function DStarLite( start, goal, map )
 
     function ComputeShortestPath()
         local iters = 0
-        io.write( 'START: ' )
+        io.write( 'Driving to: ' )
         DN( start )
-        while U.topKey() and ( CompareKey( U.topKey(), CalculateKey( start ) ) < 0 or start.rhs > start.g ) do
+        while U.topKey() and ( CompareKey( U.topKey(), CalculateKey( goal ) ) < 0 or goal.rhs > goal.g ) do
             iters = iters + 1
             local u = U.top()
             local kold = U.topKey()
             local knew = CalculateKey( u )
-            -- pause()
+            if u == goal then
+                pause()
+            end
+
             --DN(u)
 
             if CompareKey( kold, knew ) < 0 then
@@ -535,33 +610,39 @@ function DStarLite( start, goal, map )
                 for s in Pred( u ) do
                     -- using distance as my state comparision.
                     -- it COULD actually be different than distance...
-                    local c = Cost( s, u )
-                    if Distance( s.v, goal.v ) ~= 0 and s.rhs > c + u.g then
+                    local c = Cost( u, s )
+                    if Distance( s.v, start.v ) ~= 0 and s.rhs > c + u.g then
                         s.rhs = c + u.g
                         UpdateVertex( s )
                         s.tree = u
-                        --[[
-                        newrhs = math.min( s.rhs, Cost(s, u) + u.g )
-                        if newrhs ~= s.rhs then
-                            mins = s
+                        if u.tree == s then
+                            srslyPause()
                         end
-                        ]]--
                     end
                 end
             else
-                --pause()
                 local gold = u.g
                 u.g = math.huge
-                UpdateVertex( u )
 
+                --I don't know.  The pseudocode shows
+                --this part going over Pred() + u.  But
+                --I didn't see that in the c implementation.
+                local preds = { u }
                 for s in Pred( u ) do
+                    table.insert( preds, s )
+                end
 
-                    if Distance( s.v, goal.v ) > 0 and s.tree == u then
+                for i, s in pairs( preds ) do
+
+                    if Distance( s.v, start.v ) > 0 and s.tree == u then
                         updaterhs( s )
                     end
                 end
             end
         end
+
+        --if goal.g < goal.rhs then
+        --  else
         --[[
         print( 'Shortest Path Iters: ', iters )
         local st = U.stats
@@ -577,17 +658,29 @@ function DStarLite( start, goal, map )
         PrintMap( map, start, goal )
         --]]
 
+        local seendis = {}
+        local seendat = {}
         local path = {}
-        local cur = start
+        local cur = goal
         while cur do
+            local k = cur.v[1]..','..cur.v[2]..','..cur.v[3]
+
+            if seendat[ cur ] or seendis[k] then
+                srslyPause()
+            end
+
+            seendis[k] = true
+            seendat[ cur ] = true
             table.insert( path, cur )
             cur = cur.tree
         end
 
+        --[[  for some reason it isn't backwards anymore...
         local len = table.getn( path )
         for i=1, math.floor( len / 2 ) do
             path[ i ], path[ len - i + 1 ] = path[ len - i + 1 ], path[ i ]
         end
+        --]]
 
         return path
     end
@@ -595,83 +688,80 @@ function DStarLite( start, goal, map )
 
     function Main()
 
-        last = goal
+        local origGoal = goal
+        local last = goal
+        local iter = 0
         Initialize()
+
+        math.randomseed( 13 )
 
         while start and Distance( start.v, goal.v ) > 0 do
 
+            iter = iter + 1
+            print( 'Attempt ', iter )
+
+            --TODO: FIXME: On iter 10, currently the turtle tries
+            --to go down through a block that was already known to
+            --be an obstacle.  Find out why.
+            if iter == 10 then
+                srslyPause()
+                iter = 10
+            end
+
             local path = ComputeShortestPath()
+            --goal.tree = nil
 
             -- if start.rhs == infinity there is no known path=
 
-            --TODO make a function for this
-            --[[
-            local min = nil
-            local mins = nil
-            local curMin = nil
-            for s in Succ( goal ) do
-                curMin = Cost( goal, s ) + s.g
-                if not mins or curMin < min then
-                    mins = s
-                    min = curMin
-                end
-            end
-            goal = mins
-            --]]
-
-            DN( goal )
-            -- move to goal
-            -- t( moveTo, s ) ish
-            -- look for changes (i.e. was I able to move to goal
-
-            pause()
             local len = table.getn( path )
             local lasti = nil
             for i=1, len do
                 local n = path[ i ]
+                lasti = i
                 DN( n )
-                if math.random() < 0.1 then
-                    -- obstacle
+                if i > 1 and Distance( start.v, n.v ) > 0 and math.random() < 0.4 then
                     print( 'obstacle' )
-                    map.remove( n.v )
-                    insertObstacle( n.v, map )
+                    makeObstacle( n.v, map, seq )
                     break
                 end
-                lasti = i
-                goal = path[ lasti ]
+                goal = path[ i ]
             end
 
-            pause()
-            --[[
-            pause()
-            while goal do
-                DN(goal)
-                --if goal.tree and goal.tree.
-                goal = goal.tree
-            end
-            --]]
+
+            PrintMap( map, last, start )
 
             if Distance( start.v, goal.v ) > 0 then
+
                 km = km + Heuristic( last, goal )
                 last = goal
 
+                --for all the cells we went through...?
                 for i = lasti, 1, -1 do
+
+
                     for n in Succ( path[ i ] ) do
                         for nn in Succ( n ) do
-                            pause()
-                            if Distance( start.v, nn.v ) > 0 then
+                            --pause()
+                            if Distance( start.v, nn.v ) > 0  and nn.tree == n then
                                 updaterhs( nn )
                             end
                         end
 
-                        if Distance( n.v, start.v ) > 0 then
+                        if iter == 8 and n.cost > 10 then
+                            srslyPause()
+                            local foo = 'bar'
+                        end
+                        if Distance( n.v, start.v ) > 0 and n.cost ~= n.oldcost then
                             n.rhs = math.huge
                             UpdateVertex( n )
+                            n.oldcost = n.cost
                         end
                     end
+                    -- hella important to update that RHS.
+                    updaterhs( path[i] )
+
                 end
             end
-            pause()
         end
         -- drive until you hit something
         -- for all edges (u, v) with changed cost
@@ -684,7 +774,7 @@ end
 
 s = {0,0,0,0}
 
-g = {4, 4, 0, 0}
+g = {6, 5, 0, 0}
 
 updateTime = 0
 removeTime = 0
@@ -707,6 +797,10 @@ for i=0, 500 do
     map.add( n.v, n )
 end
 
+verbose=false
+
+srslyPause = pause
+function pause() end
 
 --profiler.start( 'dstarlite.prof' )
 DStarLite( s, g, nil )
