@@ -123,10 +123,9 @@ end
 
 
 -- cmp is how we compare the keys
--- equal is used to compare the value
 -- TODO: a nicety of this would be if all functions returning a value
 --      returned their key also
-function DSLPQueue( cmp, equal )
+function DSLPQueue( cmp )
     local self = {}
     local nodemap = {}
     local heap = {}
@@ -159,6 +158,21 @@ function DSLPQueue( cmp, equal )
         end
     end
 
+    function percolateUp( i )
+        if i >= next then return end
+
+        local pi = math.floor( i / 2 )
+        local key = heap[ i ].key
+        while pi > 0 do
+            if cmp( key, heap[ pi ].key ) < 0 then
+                swap( pi, i )
+                i, pi = pi, math.floor( pi / 2 )
+            else
+                return
+            end
+        end
+    end
+
     self = {
 
         nodes = function()
@@ -172,12 +186,6 @@ function DSLPQueue( cmp, equal )
         end,
 
         insert = function( val, key )
-            if key[1] == math.huge and key[2] == math.huge then --and u.v[1] == 0 and u.v[2] == 1 then
-                --srslyPause()
-            end
-            if val.v[1] == 1 and val.v[2] == 0 then
-                --srslyPause()
-            end
             self.stats.maxl = math.max( self.stats.maxl, next )
 
             local now = socket.gettime()
@@ -187,16 +195,8 @@ function DSLPQueue( cmp, equal )
             nodemap[ val ] = node
 
             heap[ next ] = node
-            local i, pi = next, math.floor( next / 2 )
             next = next + 1
-            while pi > 0 do
-                if cmp( key, heap[ pi ].key ) < 0 then
-                    swap( pi, i )
-                    i, pi = pi, math.floor( pi / 2 )
-                else
-                    break
-                end
-            end
+            percolateUp( next - 1 )
 
             updateTime = updateTime + ( socket.gettime() - now )
         end,
@@ -228,7 +228,9 @@ function DSLPQueue( cmp, equal )
             swap( node.idx, next )
             heap[ next ] = nil
 
+            percolateUp( i )
             percolateDown( i )
+
             removeTime = removeTime + ( socket.gettime() - now )
             return val
         end,
@@ -390,6 +392,7 @@ end
 
 function DStarLite( start, goal, map )
     local U, km, CalculateKey, CompareKey
+    local iter = 0
 
     if map == nil then
         map = NodeMap()
@@ -562,16 +565,71 @@ function DStarLite( start, goal, map )
             return kd1
         end
 
-        U = DSLPQueue( CompareKey, function( s1, s2 )
-            return s1.v[1] == s2.v[1]
-                and s1.v[2] == s2.v[2]
-                and s1.v[3] == s2.v[3]
-                and s1.v[4] == s2.v[4]
-        end)
+        U = DSLPQueue( CompareKey )
 
         U.insert( start, CalculateKey( start ) )
         map.add( goal.v, goal )
         map.add( start.v, start )
+    end
+
+    function MinSucc( u )
+        local mincost = math.huge
+        local minsucc = nil
+
+        for s in Succ( u ) do
+            local cost = Cost( u, s )
+            
+            if ( cost + s.g ) < mincost then
+                mincost = cost + s.g
+                minsucc = s
+            end
+        end
+
+        return minsucc, mincost
+    end
+
+    function UpdateCost( u, newcost )
+        local tmpold, tmpnew, minsucc, mincost
+        local oldcost = u.cost
+        u.cost = newcost
+
+        for s in Succ( u ) do
+            u.cost = oldcost
+            tmpold = Cost( u, s )
+            u.cost = newcost
+            tmpnew = Cost( u, s )
+
+            if Distance( u.v, start.v ) > 0 then
+                if tmpold > tmpnew then
+                    u.rhs = math.min( u.rhs, tmpnew + u.g )
+                elseif u.rhs == (tmpold + s.g) then
+                    minsucc, mincost = MinSucc( u )
+                    u.rhs = mincost
+                    u.tree = minsucc 
+                end
+            end
+        end
+
+        UpdateVertex( u )
+
+        for s in Succ( u ) do
+            u.cost = oldcost
+            tmpold = Cost( u, s )
+            u.cost = newcost
+            tmpnew = Cost( u, s )
+
+            if Distance( s.v, start.v ) > 0 then
+                if tmpold > tmpnew then
+                    s.rhs = math.min( s.rhs, tmpnew + u.g )
+                elseif s.rhs == ( tmpold + u.g ) then
+                    minsucc, mincost = MinSucc( s )
+                    s.rhs = mincost
+                    s.tree = minsucc
+                end
+            end
+
+            UpdateVertex( s )
+        end
     end
 
     function UpdateVertex( u )
@@ -591,14 +649,14 @@ function DStarLite( start, goal, map )
         local iters = 0
         io.write( 'Driving to: ' )
         DN( start )
+        if iter == 4 then
+            pause()
+        end
         while U.topKey() and ( CompareKey( U.topKey(), CalculateKey( goal ) ) < 0 or goal.rhs > goal.g ) do
             iters = iters + 1
             local u = U.top()
             local kold = U.topKey()
             local knew = CalculateKey( u )
-            if u == goal then
-                pause()
-            end
 
             --DN(u)
 
@@ -690,23 +748,14 @@ function DStarLite( start, goal, map )
 
         local origGoal = goal
         local last = goal
-        local iter = 0
         Initialize()
 
-        math.randomseed( 13 )
+        math.randomseed( 14 )
 
         while start and Distance( start.v, goal.v ) > 0 do
 
             iter = iter + 1
             print( 'Attempt ', iter )
-
-            --TODO: FIXME: On iter 10, currently the turtle tries
-            --to go down through a block that was already known to
-            --be an obstacle.  Find out why.
-            if iter == 10 then
-                srslyPause()
-                iter = 10
-            end
 
             local path = ComputeShortestPath()
             --goal.tree = nil
@@ -715,10 +764,18 @@ function DStarLite( start, goal, map )
 
             local len = table.getn( path )
             local lasti = nil
+            local costOld
             for i=1, len do
                 local n = path[ i ]
                 lasti = i
                 DN( n )
+                
+                if i > 1 then
+                    costOld = Cost( path[ i - 1 ], path[ i ] )
+                else
+                    costOld = path[ i ].cost
+                end
+
                 if i > 1 and Distance( start.v, n.v ) > 0 and math.random() < 0.4 then
                     print( 'obstacle' )
                     makeObstacle( n.v, map, seq )
@@ -730,6 +787,9 @@ function DStarLite( start, goal, map )
 
             PrintMap( map, last, start )
 
+            if iter == 3 then
+                pause()
+            end
             if Distance( start.v, goal.v ) > 0 then
 
                 km = km + Heuristic( last, goal )
@@ -737,29 +797,11 @@ function DStarLite( start, goal, map )
 
                 --for all the cells we went through...?
                 for i = lasti, 1, -1 do
+                    local newcost = path[ i ].cost
+                    path[ i ].cost = path[ i ].oldcost
 
-
-                    for n in Succ( path[ i ] ) do
-                        for nn in Succ( n ) do
-                            --pause()
-                            if Distance( start.v, nn.v ) > 0  and nn.tree == n then
-                                updaterhs( nn )
-                            end
-                        end
-
-                        if iter == 8 and n.cost > 10 then
-                            srslyPause()
-                            local foo = 'bar'
-                        end
-                        if Distance( n.v, start.v ) > 0 and n.cost ~= n.oldcost then
-                            n.rhs = math.huge
-                            UpdateVertex( n )
-                            n.oldcost = n.cost
-                        end
-                    end
-                    -- hella important to update that RHS.
-                    updaterhs( path[i] )
-
+                    UpdateCost( path[ i ], newcost )
+                    path[ i ].oldcost = path[ i ].cost
                 end
             end
         end
@@ -800,7 +842,7 @@ end
 verbose=false
 
 srslyPause = pause
-function pause() end
+-- function pause() end
 
 --profiler.start( 'dstarlite.prof' )
 DStarLite( s, g, nil )
