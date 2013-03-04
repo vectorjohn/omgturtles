@@ -512,7 +512,7 @@ function DStarLite( start, goal, map )
         -- to reduce expanded nodes.
         --return TrueDistance( s1.v, s2.v ) + cross * .05
         -- I think for this to be feasible, I need to randomize vertices
-        return Distance( s1.v, s2.v ) + cross * .000001
+        return Distance( s1.v, s2.v ) --+ cross * .000000001
     end
 
     function Cost( s, sn )
@@ -561,7 +561,11 @@ function DStarLite( start, goal, map )
         CompareKey = function( k1, k2 )
             local kd1 = k1[1] - k2[1]
 
-            if kd1 == 0 then return k1[2] - k2[2] end
+            if math.abs(kd1) < 0.000001 then
+                kd1 = k1[2] - k2[2]
+                if math.abs(kd1) < 0.000001 then return 0 end
+                return kd1
+            end
             return kd1
         end
 
@@ -652,12 +656,19 @@ function DStarLite( start, goal, map )
         if iter == 4 then
             pause()
         end
-        while U.topKey() and ( CompareKey( U.topKey(), CalculateKey( goal ) ) < 0 or goal.rhs > goal.g ) do
+
+        while U.topKey() and ( CompareKey( U.topKey(), CalculateKey( goal ) ) < 0 or goal.rhs ~= goal.g ) do
             iters = iters + 1
             local u = U.top()
             local kold = U.topKey()
             local knew = CalculateKey( u )
 
+            if u == goal and iter == 4 then
+                pause()
+            end
+            if iter == 4 and u.v[1] == 4 and u.v[2] == 5 then
+                pause()
+            end
             --DN(u)
 
             if CompareKey( kold, knew ) < 0 then
@@ -724,6 +735,9 @@ function DStarLite( start, goal, map )
             local k = cur.v[1]..','..cur.v[2]..','..cur.v[3]
 
             if seendat[ cur ] or seendis[k] then
+                print( "Holy shit what's going on?" )
+                print( 'km: ', km )
+                PrintMap( map, nil, start )
                 srslyPause()
             end
 
@@ -750,14 +764,16 @@ function DStarLite( start, goal, map )
         local last = goal
         Initialize()
 
-        math.randomseed( 14 )
+        math.randomseed( 27 )
 
         while start and Distance( start.v, goal.v ) > 0 do
 
             iter = iter + 1
             print( 'Attempt ', iter )
 
+            local now = socket.gettime()
             local path = ComputeShortestPath()
+            print( 'Time to compute: ', socket.gettime() - now )
             --goal.tree = nil
 
             -- if start.rhs == infinity there is no known path=
@@ -776,7 +792,7 @@ function DStarLite( start, goal, map )
                     costOld = path[ i ].cost
                 end
 
-                if i > 1 and Distance( start.v, n.v ) > 0 and math.random() < 0.4 then
+                if i > 1 and Distance( start.v, n.v ) > 0 and math.random() < 0.2 then
                     print( 'obstacle' )
                     makeObstacle( n.v, map, seq )
                     break
@@ -816,7 +832,7 @@ end
 
 s = {0,0,0,0}
 
-g = {6, 5, 0, 0}
+g = {160, 150, 0, 0}
 
 updateTime = 0
 removeTime = 0
@@ -842,7 +858,7 @@ end
 verbose=false
 
 srslyPause = pause
--- function pause() end
+function pause() end
 
 --profiler.start( 'dstarlite.prof' )
 DStarLite( s, g, nil )
