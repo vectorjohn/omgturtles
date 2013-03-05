@@ -439,6 +439,8 @@ function DStarLite( start, goal, map )
 			{s[1]-1, s[2], s[3],s[4]},
 			{s[1], s[2]+1, s[3],s[4]},
 			{s[1], s[2]-1, s[3],s[4]},
+			{s[1], s[2], s[3]+1,s[4]},
+			{s[1], s[2], s[3]-1,s[4]},
 		}
 
         local nodes = {}
@@ -512,7 +514,7 @@ function DStarLite( start, goal, map )
         -- to reduce expanded nodes.
         --return TrueDistance( s1.v, s2.v ) + cross * .05
         -- I think for this to be feasible, I need to randomize vertices
-        return Distance( s1.v, s2.v ) --+ cross * .000000001
+        return Distance( s1.v, s2.v ) --+ cross * .0000000001
     end
 
     function Cost( s, sn )
@@ -561,9 +563,9 @@ function DStarLite( start, goal, map )
         CompareKey = function( k1, k2 )
             local kd1 = k1[1] - k2[1]
 
-            if math.abs(kd1) < 0.000001 then
+            if math.abs(kd1) < 0.00001 then
                 kd1 = k1[2] - k2[2]
-                if math.abs(kd1) < 0.000001 then return 0 end
+                if math.abs(kd1) < 0.00001 then return 0 end
                 return kd1
             end
             return kd1
@@ -792,7 +794,7 @@ function DStarLite( start, goal, map )
                     costOld = path[ i ].cost
                 end
 
-                if i > 1 and Distance( start.v, n.v ) > 0 and math.random() < 0.2 then
+                if i > 1 and Distance( start.v, n.v ) > 0 and math.random() < 0.3 then
                     print( 'obstacle' )
                     makeObstacle( n.v, map, seq )
                     break
@@ -832,7 +834,7 @@ end
 
 s = {0,0,0,0}
 
-g = {160, 150, 0, 0}
+g = {16, 15, 0, 0}
 
 updateTime = 0
 removeTime = 0
