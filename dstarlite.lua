@@ -1,25 +1,43 @@
 --SHIM
+verbose = true
+mode = 'development' -- production or development
 
-require( 'debugger' )
-require( 'profiler' )
-_inspect = require( 'inspect' )
-inspect = function( ... )
-    print( _inspect( unpack( arg ) ) )
+if mode == 'development' then
+    require( 'debugger' )
+    require( 'profiler' )
+    require "socket"
+    _inspect = require( 'inspect' )
+    inspect = function( ... )
+        print( _inspect( unpack( arg ) ) )
+    end
+else
+    function pause() end
+    profiler = {start = function() end, stop = function() end}
+    socket = {gettime = function() return 0 end}
+    inspect = function() end
+    io = {write = function( ... )
+        if not verbose then return end
+        term.write( unpack( arg ) )
+    end}
 end
 
+-- CC doesn't seem to have math.huge. Or maybe it is sometimes math.inf?
 if not math.huge then
     math.huge = 1 / 0
 end
 
 function DumpQueue(q)
+    if not verbose then return end
+
     local i = 1
     for key, s in q.nodes() do
-        print( i..': '..'['..key[1]..','..key[2]..']', s.v[1], s.v[2], s.v[3], s.v[4] )
+        dprint( i..': '..'['..key[1]..','..key[2]..']', s.v[1], s.v[2], s.v[3], s.v[4] )
         i = i + 1
     end
 end
 
 function DumpNode(s)
+    if not verbose then return end
      print(  s.v[1], s.v[2], s.v[3], s.v[4] )
 end
 
@@ -28,6 +46,26 @@ function dlog( ... )
     inspect( unpack( arg ) )
 end
 
+function dprint( ... )
+    if not verbose then return end
+    print( unpack( arg ) )
+end
+
+function panic()
+    dprint( "Stuff broke and I don't know what to do about it" )
+    if verbose then
+        pause()
+    end
+end
+
+function LogPrintMap( m, goal, start )
+    if not verbose then
+        return
+    end
+    PrintMap( m, goal, start )
+end
+
+--Not likely very useful in 3D
 function PrintMap(m, goal, start)
     local minx, miny, maxx, maxy = math.huge, math.huge, -math.huge, -math.huge
 
@@ -341,11 +379,38 @@ function Node( v )
         rhs = math.huge,
         g = math.huge,
         tree = nil,
-        findseq = 0,
         cost = 1,
         oldcost = 1,
         v = {v[1], v[2], v[3], v[4]}
     }
+end
+
+function Unit( n )
+    return n
+end
+
+function VectorAdd( v1, v2 )
+    local vs = {
+        v1[1] + v2[1],
+        v1[2] + v2[2],
+        v1[3] + v2[3],
+        v1[4] + v2[4],
+    }
+    if vs[4] > 3 then vs[4] = vs[4] - 4 end
+
+    return vs
+end
+
+function VectorSub( v1, v2 )
+    local vs = {
+        v1[1] - v2[1],
+        v1[2] - v2[2],
+        v1[3] - v2[3],
+        v1[4] - v2[4],
+    }
+    if vs[4] < 0 then vs[4] = vs[4] + 4 end
+
+    return vs
 end
 
 function Obstacle( v )
@@ -360,7 +425,7 @@ end
 -- Needs to remove existing nodes, and replace *all*
 -- directions with the new obstacle.  If there was a
 -- node already, its RHS etc. values need to be maintained.
-function makeObstacle( v, map, seq )
+function makeObstacle( v, map )
     for dir = 0, 3 do
         local ov = {v[1], v[2], v[3], dir}
         local existing = map.get( ov )
@@ -421,10 +486,6 @@ function DStarLite( start, goal, map )
             dx = 1
         end
 
-        if verbose then
-            pause()
-        end
-
         local vertices = {
 			{s[1] + dx, s[2] + dy, s[3],      s[4]     }, -- move north or east
 			{s[1] - dx, s[2] - dy, s[3],      s[4]     }, -- move south or west
@@ -450,9 +511,6 @@ function DStarLite( start, goal, map )
             diff = -1
         end
         while vertices[i] do
-            if verbose then
-                dlog( vertices )
-            end
             local n = map.get( vertices[i] )
             if not n then
 
@@ -483,15 +541,6 @@ function DStarLite( start, goal, map )
                 n.rhs = s.g + cost
                 n.tree = s
             end
-        end
-
-        if n.tree and n.tree.tree == n then
-            -- oopsies, infinite loop.
-            -- Well, it looks like that may not be the case
-            -- Because a later call to updaterhs may fix it
-            -- It's hard to comprehend a proof that will happen...
-            -- So.  Keep an eye out.
-            -- srslyPause()
         end
 
         UpdateVertex( n )
@@ -655,23 +704,12 @@ function DStarLite( start, goal, map )
         local iters = 0
         io.write( 'Driving to: ' )
         DN( start )
-        if iter == 4 then
-            pause()
-        end
 
         while U.topKey() and ( CompareKey( U.topKey(), CalculateKey( goal ) ) < 0 or goal.rhs ~= goal.g ) do
             iters = iters + 1
             local u = U.top()
             local kold = U.topKey()
             local knew = CalculateKey( u )
-
-            if u == goal and iter == 4 then
-                pause()
-            end
-            if iter == 4 and u.v[1] == 4 and u.v[2] == 5 then
-                pause()
-            end
-            --DN(u)
 
             if CompareKey( kold, knew ) < 0 then
                 U.update( u, knew )
@@ -687,7 +725,7 @@ function DStarLite( start, goal, map )
                         UpdateVertex( s )
                         s.tree = u
                         if u.tree == s then
-                            srslyPause()
+                            pause()
                         end
                     end
                 end
@@ -712,23 +750,6 @@ function DStarLite( start, goal, map )
             end
         end
 
-        --if goal.g < goal.rhs then
-        --  else
-        --[[
-        print( 'Shortest Path Iters: ', iters )
-        local st = U.stats
-        print( 'update', st.update, 'insert', st.insert, 'remove', st.remove, 'maxl', st.maxl )
-        DQ()
-        --local cur = start
-        --while cur do
-        --    DN(cur)
-        --    cur = cur.tree
-        --end
-
-        print( 'Known nodes' )
-        PrintMap( map, start, goal )
-        --]]
-
         local seendis = {}
         local seendat = {}
         local path = {}
@@ -737,10 +758,10 @@ function DStarLite( start, goal, map )
             local k = cur.v[1]..','..cur.v[2]..','..cur.v[3]
 
             if seendat[ cur ] or seendis[k] then
-                print( "Holy shit what's going on?" )
-                print( 'km: ', km )
-                PrintMap( map, nil, start )
-                srslyPause()
+                dprint( "Holy shit what's going on?" )
+                dprint( 'km: ', km )
+                LogPrintMap( map, nil, start )
+                panic()
             end
 
             seendis[k] = true
@@ -749,16 +770,44 @@ function DStarLite( start, goal, map )
             cur = cur.tree
         end
 
-        --[[  for some reason it isn't backwards anymore...
-        local len = table.getn( path )
-        for i=1, math.floor( len / 2 ) do
-            path[ i ], path[ len - i + 1 ] = path[ len - i + 1 ], path[ i ]
-        end
-        --]]
-
         return path
     end
+
+    function TryMove( n, i )
+        local firstmove = i == 1
+        local isstart = Distance( start.v, VectorAdd( goal.v, n ) ) == 0
+        if not isstart and not firstmove and math.random() < 0.2 then
+            return false
+        end
+
+        return true
+    end
     
+    function TraversePath( path )
+        local len = table.getn( path )
+        local lasti = nil
+        local costOld
+        for i=1, len do
+            local n = path[ i ]
+            lasti = i
+            DN( n )
+            
+            if i > 1 then
+                costOld = Cost( path[ i - 1 ], path[ i ] )
+            else
+                costOld = path[ i ].cost
+            end
+
+            if not TryMove( VectorSub( n.v, goal.v ), i ) then
+                dprint( 'obstacle' )
+                makeObstacle( n.v, map )
+                break
+            end
+            goal = path[ i ]
+        end
+
+        return lasti
+    end
 
     function Main()
 
@@ -771,43 +820,18 @@ function DStarLite( start, goal, map )
         while start and Distance( start.v, goal.v ) > 0 do
 
             iter = iter + 1
-            print( 'Attempt ', iter )
+            dprint( 'Attempt ', iter )
 
             local now = socket.gettime()
             local path = ComputeShortestPath()
-            print( 'Time to compute: ', socket.gettime() - now )
-            --goal.tree = nil
+            dprint( 'Time to compute: ', socket.gettime() - now )
 
             -- if start.rhs == infinity there is no known path=
 
-            local len = table.getn( path )
-            local lasti = nil
-            local costOld
-            for i=1, len do
-                local n = path[ i ]
-                lasti = i
-                DN( n )
-                
-                if i > 1 then
-                    costOld = Cost( path[ i - 1 ], path[ i ] )
-                else
-                    costOld = path[ i ].cost
-                end
-
-                if i > 1 and Distance( start.v, n.v ) > 0 and math.random() < 0.3 then
-                    print( 'obstacle' )
-                    makeObstacle( n.v, map, seq )
-                    break
-                end
-                goal = path[ i ]
-            end
-
-
+            local lasti = TraversePath( path )
+            
             PrintMap( map, last, start )
 
-            if iter == 3 then
-                pause()
-            end
             if Distance( start.v, goal.v ) > 0 then
 
                 km = km + Heuristic( last, goal )
@@ -823,13 +847,9 @@ function DStarLite( start, goal, map )
                 end
             end
         end
-        -- drive until you hit something
-        -- for all edges (u, v) with changed cost
-        --update the cost c(u,v)
-        --update vertext v
     end
 
-    Main()  --not necessary probably
+    Main()
 end
 
 s = {0,0,0,0}
@@ -838,50 +858,9 @@ g = {16, 15, 0, 0}
 
 updateTime = 0
 removeTime = 0
-require "socket"
 
-local map = NodeMap()
 
-for i=-5, 20 do
-    n = Obstacle( {i, 5, 0, 0} )
-    map.add( n.v, n )
-end
-for i=0, 500 do
-    n = {
-        math.floor( 2*g[1] * math.random() - g[1] ),
-        math.floor( 2*g[2] * math.random() - g[2] ),
-        math.floor( 2*g[3] * math.random() - g[3] ),
-        0
-    }
-    n = Obstacle( n )
-    map.add( n.v, n )
-end
-
-verbose=false
-
-srslyPause = pause
-function pause() end
-
---profiler.start( 'dstarlite.prof' )
 DStarLite( s, g, nil )
---profiler.stop()
 
-print( 'Total time in DSLPQueue.insert: ', updateTime )
-print( 'Total time in DSLPQueue.remove: ', removeTime )
-
-os.exit()
-math.randomseed( os.time() )
-size = 20
-for x=-5, 5 do
-    for y = -5, 5 do
-        for z = -5, 5 do
-            g = {x, y, z}
-            if x and y and z then
-                DStarLite( s, g, nil )
-            end
-        end
-    end
-end
---g = {math.random(-size, size), math.random(-size,size), math.random(-size,size) }
---g = {3, 3, 0}
---DStarLite( s, g, nil )
+dprint( 'Total time in DSLPQueue.insert: ', updateTime )
+dprint( 'Total time in DSLPQueue.remove: ', removeTime )
