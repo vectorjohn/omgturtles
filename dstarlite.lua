@@ -1,6 +1,6 @@
 --SHIM
 verbose = true
-mode = 'development' -- production or development
+mode = 'production' -- production or development
 
 if mode == 'development' then
     require( 'debugger' )
@@ -10,6 +10,13 @@ if mode == 'development' then
     inspect = function( ... )
         print( _inspect( unpack( arg ) ) )
     end
+
+    local iowrite = io.write
+    io = {write = function( ... )
+        if not verbose then return end
+        iowrite( unpack( arg ) )
+    end}
+    
 else
     function pause() end
     profiler = {start = function() end, stop = function() end}
@@ -425,19 +432,20 @@ end
 -- Needs to remove existing nodes, and replace *all*
 -- directions with the new obstacle.  If there was a
 -- node already, its RHS etc. values need to be maintained.
-function makeObstacle( v, map )
+function makeObstacle( v, map, cost )
     for dir = 0, 3 do
         local ov = {v[1], v[2], v[3], dir}
         local existing = map.get( ov )
         if existing then
             existing.oldcost = existing.cost
-            existing.cost = math.huge
+            existing.cost = cost
             --for s in Succ( existing ) do
             --    if s.tree == existing then
             --    end
             --end
         else
-            local node = Obstacle( ov )
+            local node = Node( ov )
+            node.cost = cost
             map.add( node.v, node )
         end
     end
@@ -455,7 +463,7 @@ function TrueDistance( a, b )
     return math.sqrt( hyp * hyp + d3 * d3 )
 end
 
-function DStarLite( start, goal, map )
+function DStarLite( start, goal, map, onmove )
     local U, km, CalculateKey, CompareKey
     local iter = 0
 
@@ -506,10 +514,6 @@ function DStarLite( start, goal, map )
 
         local nodes = {}
         local i, diff = 1, 1
-        if math.random() > .5 then
-            i = table.getn( vertices )
-            diff = -1
-        end
         while vertices[i] do
             local n = map.get( vertices[i] )
             if not n then
@@ -773,20 +777,22 @@ function DStarLite( start, goal, map )
         return path
     end
 
-    function TryMove( n, i )
+    -- try to move to v, which is move i and expected cost cost
+    function TestMove( v, cost, i )
         local firstmove = i == 1
-        local isstart = Distance( start.v, VectorAdd( goal.v, n ) ) == 0
+        local isstart = Distance( start.v, VectorAdd( goal.v, v ) ) == 0
         if not isstart and not firstmove and math.random() < 0.2 then
-            return false
+            return math.huge
         end
 
-        return true
+        return cost
     end
     
     function TraversePath( path )
         local len = table.getn( path )
         local lasti = nil
         local costOld
+        local move = onmove or TestMove
         for i=1, len do
             local n = path[ i ]
             lasti = i
@@ -798,9 +804,11 @@ function DStarLite( start, goal, map )
                 costOld = path[ i ].cost
             end
 
-            if not TryMove( VectorSub( n.v, goal.v ), i ) then
+            local cost = move( VectorSub( n.v, goal.v ), n.cost, i )
+
+            if cost ~= n.cost then
                 dprint( 'obstacle' )
-                makeObstacle( n.v, map )
+                makeObstacle( n.v, map, cost )
                 break
             end
             goal = path[ i ]
@@ -830,7 +838,7 @@ function DStarLite( start, goal, map )
 
             local lasti = TraversePath( path )
             
-            PrintMap( map, last, start )
+            LogPrintMap( map, last, start )
 
             if Distance( start.v, goal.v ) > 0 then
 
@@ -852,15 +860,16 @@ function DStarLite( start, goal, map )
     Main()
 end
 
-s = {0,0,0,0}
+if mode == 'development' then
+    s = {0,0,0,0}
+    g = {16, 15, 0, 0}
 
-g = {16, 15, 0, 0}
-
-updateTime = 0
-removeTime = 0
+    updateTime = 0
+    removeTime = 0
 
 
-DStarLite( s, g, nil )
+    DStarLite( s, g, nil )
 
-dprint( 'Total time in DSLPQueue.insert: ', updateTime )
-dprint( 'Total time in DSLPQueue.remove: ', removeTime )
+    dprint( 'Total time in DSLPQueue.insert: ', updateTime )
+    dprint( 'Total time in DSLPQueue.remove: ', removeTime )
+end
