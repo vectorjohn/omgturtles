@@ -22,10 +22,16 @@ else
     profiler = {start = function() end, stop = function() end}
     socket = {gettime = function() return 0 end}
     inspect = function() end
-    io = {write = function( ... )
-        if not verbose then return end
-        term.write( unpack( arg ) )
-    end}
+    if not term then
+        local iowrite = io.write
+        term = {
+            write = function( ... )
+                if not verbose then return end
+                iowrite( unpack( arg ) )
+            end
+        }
+    end
+    io = term
 end
 
 -- CC doesn't seem to have math.huge. Or maybe it is sometimes math.inf?

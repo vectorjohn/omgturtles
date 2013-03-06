@@ -2,6 +2,8 @@ util.lua
 update.lua
 index.txt
 mine.lua
+dsltester.lua
+dstarlite.lua
 progs/
 progs/libtest.lua
 progs/carpet.lua

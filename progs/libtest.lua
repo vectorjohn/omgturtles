@@ -10,12 +10,13 @@ end
 cc_include( 'util' )
 cc_include( 'mine' )
 
-
-term = {
-	write = function(s)
-		io.write( s )
-	end
-}
+if not term then
+    term = {
+        write = function(s)
+            io.write( s )
+        end
+    }
+end
 
 function faketurtle()
 	local T = {
@@ -40,6 +41,19 @@ function faketurtle()
 		--print (T.dir)
 		return true
 	end
+
+    --TODO: fill these in
+    function T.back()
+        return true
+    end
+
+    function T.up()
+        return true
+    end
+
+    function T.down()
+        return true
+    end
 
 	function T.dig() return true end
 
@@ -89,4 +103,4 @@ function runTest()
 	)
 end
 
-runTest()
+--runTest()

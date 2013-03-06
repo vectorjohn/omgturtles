@@ -53,4 +53,3 @@ function gotocoord( x,y,z )
     DStarLite( {0,0,0,0}, {x, y, z, 0}, nil, DSMoveCallback )
 end
 
-gotocoord( 5,5,5 )
