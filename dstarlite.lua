@@ -860,12 +860,13 @@ function DStarLite( start, goal, map, onmove )
     Main()
 end
 
+updateTime = 0
+removeTime = 0
+
 if mode == 'development' then
     s = {0,0,0,0}
     g = {16, 15, 0, 0}
 
-    updateTime = 0
-    removeTime = 0
 
 
     DStarLite( s, g, nil )
