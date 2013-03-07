@@ -42,6 +42,14 @@ function faketurtle()
 		return true
 	end
 
+    function T.turnRight()
+		T.dir = T.dir + 1
+		if T.dir > 3 then T.dir = 0 end
+		--print (T.dir)
+		return true
+	end
+
+
     --TODO: fill these in
     function T.back()
         return true

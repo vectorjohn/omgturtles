@@ -1,4 +1,10 @@
 
+if not math.mod then
+    function math.mod( n, d )
+        return n % d
+    end
+end
+
 function spiralDo( t, r, each )
 
 	function step( curRad, dir, sidePos )

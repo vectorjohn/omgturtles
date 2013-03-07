@@ -1,5 +1,5 @@
 --SHIM
-verbose = true
+verbose = {}    --this is a map of features to be verbose about
 mode = 'production' -- production or development
 
 if mode == 'development' then
@@ -51,7 +51,7 @@ end
 
 function DumpNode(s)
     if not verbose then return end
-     print(  s.v[1], s.v[2], s.v[3], s.v[4] )
+     print(  '<'..s.v[1]..','..s.v[2]..','.. s.v[3]..','.. s.v[4]..'>' )
 end
 
 function dlog( ... )
@@ -72,7 +72,7 @@ function panic()
 end
 
 function LogPrintMap( m, goal, start )
-    if not verbose then
+    if not ( verbose and verbose.map ) then
         return
     end
     PrintMap( m, goal, start )

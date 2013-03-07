@@ -10,13 +10,15 @@ cc_include( 'util' )
 cc_include( 'dstarlite' )
 cc_include( 'progs/libtest' )
 
-t = trackable( faketurtle() )
-
-function faceDirection( t, d )
-    local state = t( 'getState' )
-
+function faceDirection( t, d, curDir )
     -- frame shift so that turtle is facing 0 (north).  Delta is the turn direction and count
-    local delta = math.mod( d - state.dir, 4 )
+    -- Also, math.mod() is different than mod operator - math.mod handles negatives
+    local delta = d - curDir
+    print( 'face ', d, 'from', curDir )
+
+    if delta == 0 then
+        return
+    end
 
     local cmd = nil
 
@@ -29,20 +31,35 @@ function faceDirection( t, d )
     else cmd = 'turnLeft'
     end
 
-    for i = 1, delta, delta / delta do
+    print( 'turning: '..cmd )
+    local ccw = 1
+    if delta < 0 then ccw = -1 end
+    for i = ccw, delta, ccw do
         t( cmd )
     end
 end
 
-function DSMoveCallback( v, cost, i )
+function DSMoveCallback( t, v, cost, i )
     local state = t( 'getState' )
-    local dx, dy = v[1], v[2]
+    local dx, dy, dz = v[1], v[2], v[3]
     local dir = dx + dy - 1 * math.abs( dy )
+    local cmd = 'forward'
     dir = math.mod( dir + 4, 4 )
 
-    faceDirection( t, dir )
+    if dx == 0 and dy == 0 and dz == 0 then
+        -- DStarLite sometimes says to move to the current location.  I may or may not change that.
+        return cost
+    end
 
-    if not t( 'forward' ) then
+    faceDirection( t, dir, state.dir )
+
+    if dz ~= 0 then
+        if dz > 0 then cmd = 'up'
+        else cmd = 'down'
+        end
+    end
+
+    if not t( cmd ) then
         return 1 / 0
     end
 
@@ -50,6 +67,21 @@ function DSMoveCallback( v, cost, i )
 end
 
 function gotocoord( x,y,z )
-    DStarLite( {0,0,0,0}, {x, y, z, 0}, nil, DSMoveCallback )
+    local t = verboseTurtle( trackable( faketurtle() ) )
+    t = trackable( turtle )
+    local count = 0
+    DStarLite( {0,0,0,0}, {x, y, z, 0}, nil, function( v, cost, i )
+        count = count + 1
+        --if count == 3 then return 1 / 0 end
+        return DSMoveCallback( t, v, cost, i )
+    end)
 end
 
+local args = {...}
+
+if table.getn( args ) < 3 then
+    print( 'Usage: dsltester.lua X Y Z' )
+    return
+end
+
+gotocoord( tonumber( args[1] ), tonumber( args[2] ), tonumber( args[3] ) )
