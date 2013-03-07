@@ -8,8 +8,10 @@ function cc_include( f )
 end
 
 cc_include( 'util' )
+cc_include( 'dstarlite' )
+cc_include( 'coord_move' )
 cc_include( 'mine' )
 
 t = trackable( turtle )
 
-mine( t, 1, 4 )
+mine( t, 1, 2, 16, true )

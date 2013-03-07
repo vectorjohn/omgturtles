@@ -4,6 +4,7 @@ util.lua
 mine.lua
 dsltester.lua
 dstarlite.lua
+coord_move.lua
 progs/
 progs/libtest.lua
 progs/carpet.lua

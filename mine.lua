@@ -19,6 +19,23 @@ local makeRepeat = function( fn )
 	end
 end
 
+function digMove( t, n )
+
+    for i = 1, n do
+        if not t( 'forward' ) then
+            t( 'dig' )
+
+            if not t( 'forward' ) then
+                return false
+            end
+        end
+
+        t( 'digUp' )
+    end
+
+    return true
+end
+
 local forward = makeRepeat( 'forward' )
 local back = makeRepeat( 'back' )
 local left = makeRepeat( 'turnLeft' )
@@ -51,17 +68,70 @@ function goback( t, state )
 	right( t )
 end
 
+function gotocoord( t, xf,yf,zf, x, y, z )
 
-function mine( t, shaftRad, maxDepth )
+    if z == nil then
+        x, y, z = xf, yf, zf
+        xf, yf, zf = 0, 0, 0
+    end
+    DStarLite( {xf, yf, zf, 0}, {x, y, z, 0}, nil, function( v, cost, i )
+        return CoordMove( t, v, cost, i )
+    end)
+end
+
+function mine( t, shaftRad, maxDepth, maxShafts, underground )
+    local xoff = 0
+    local yoff = 10
+
+    for shaftNum = 0, maxShafts do
+        mineOne( t, xoff, yoff, shaftRad, maxDepth, underground )
+
+        emptyInventory( t )
+
+        if xoff < 0 then
+            xoff = -xoff + ( 2 * shaftRad + 1 )
+        else
+            xoff = -xoff - ( 2 * shaftRad + 1 )
+        end
+        --yoff = yoff + 2 * shaftRad + 1
+    end
+end
+
+function emptyInventory( t )
+    for i = 1, 16 do
+        t( 'select', i )
+        t( 'drop' )
+    end
+end
+
+function mineOne( t, xoff, yoff, shaftRad, maxDepth, underground )
 	left( t, 2 )
-	drive( t, 10 )
 
-	t( 'pushState' )
+    if underground then
+        if not digMove( t, yoff ) then
+            print( 'Could not move to dig site' )
+            return false
+        end
+    else
+        drive( t, yoff )
+    end
+
+    if xoff > 0 then
+        t( 'turnRight' )
+    else
+        t( 'turnLeft' )
+    end
+
+    digMove( t, math.abs( xoff ) )
+
+	--t( 'pushState' )
 	shaft( t, shaftRad, maxDepth )
 
-	local undo = t( 'popState' )
-	goback( t, undo )
+	--local undo = t( 'popState' )
+    local state = t( 'getState' )
+    gotocoord( t, state.x, state.y, state.z, 0, 0, 0 )
 
+    do return end
 
 	left( t, 2 )
 
@@ -77,7 +147,7 @@ function shaft( t, rad, depth )
 		return true
 	end
 
-	t( 'pushState' )
+	--t( 'pushState' )
 
 	t( 'digDown' )
 	t( 'down' )
@@ -107,6 +177,6 @@ function shaft( t, rad, depth )
 	t( 'down' )
 
 	-- merge this layer with the total history of the turtle
-	t( 'popState' )
+	--t( 'popState' )
 	return shaft( t, rad, depth - 2 )
 end
