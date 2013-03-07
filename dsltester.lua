@@ -51,7 +51,9 @@ function DSMoveCallback( t, v, cost, i )
         return cost
     end
 
-    faceDirection( t, dir, state.dir )
+    if dx ~= 0 or dy ~= 0 then
+        faceDirection( t, dir, state.dir )
+    end
 
     if dz ~= 0 then
         if dz > 0 then cmd = 'up'
@@ -66,11 +68,16 @@ function DSMoveCallback( t, v, cost, i )
     return cost
 end
 
-function gotocoord( x,y,z )
+function gotocoord( xf,yf,zf, x, y, z )
     local t = verboseTurtle( trackable( faketurtle() ) )
     t = trackable( turtle )
     local count = 0
-    DStarLite( {0,0,0,0}, {x, y, z, 0}, nil, function( v, cost, i )
+
+    if x == nil then
+        x, y, z = xf, yf, zf
+        xf, yf, zf = 0, 0, 0
+    end
+    DStarLite( {xf, yf, zf, 0}, {x, y, z, 0}, nil, function( v, cost, i )
         count = count + 1
         --if count == 3 then return 1 / 0 end
         return DSMoveCallback( t, v, cost, i )
@@ -80,8 +87,8 @@ end
 local args = {...}
 
 if table.getn( args ) < 3 then
-    print( 'Usage: dsltester.lua X Y Z' )
+    print( 'Usage: dsltester.lua [from X Y Z] X Y Z' )
     return
 end
 
-gotocoord( tonumber( args[1] ), tonumber( args[2] ), tonumber( args[3] ) )
+gotocoord( tonumber( args[1] ), tonumber( args[2] ), tonumber( args[3] ), tonumber( args[4] ), tonumber( args[5] ), tonumber( args[6] ) )
