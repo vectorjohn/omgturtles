@@ -386,16 +386,49 @@ function NodeMap()
     return self
 end
 
+local NodeMetatable = {}
+NodeMetatable.__index = NodeMetatable
+NodeMetatable.__metatable = NodeMetatable
+
+function NodeMetatable:serialize()
+    return self.v[1]..','
+        ..self.v[2]..','
+        ..self.v[3]..','
+        ..self.v[4]..','
+        ..self.g..','
+        ..self.rhs..','
+        ..self.cost
+end
+
+function NodeMetatable:unserialize( s )
+    local v = {}
+    s:gsub( '([^,]*)', function(m) table.insert( v,tonumber(m) ) end )
+
+    local n = Node( v )
+    n.g = v[5]
+    n.rhs = v[6]
+    n.cost = v[7]
+    return n
+end
 
 function Node( v )
-    return {
+    if type(v) == 'string' then
+        return NodeMetatable:unserialize( v )
+    end
+
+    if v == nil then v = {0,0,0,0} end
+
+    local n = {
         rhs = math.huge,
         g = math.huge,
         tree = nil,
         cost = 1,
         oldcost = 1,
-        v = {v[1], v[2], v[3], v[4]}
+        v = {v[1], v[2], v[3], v[4]},
     }
+
+    setmetatable( n, NodeMetatable )
+    return n
 end
 
 function Unit( n )
