@@ -133,6 +133,7 @@ function findSaplings( t )
     local state = t( 'getState' )
     t( 'select', 1 )
     drive( t, 1 )
+    t( 'suckDown' )
     spiralDo( t, 2, function()
         t( 'down' )
         while t( 'suck' ) do end
@@ -249,11 +250,12 @@ function TreeValue( tree )
     elseif tree.state == TreeState.unknown then
         key = 3
     elseif tree.state == TreeState.sapling then
-        -- time since planting - 15 minutes in minutes
-        -- maxing out at 1.  after 15 minutes, same priority as a tree
-        key = math.min( 1, ((os.clock() - tree.updated) - 15 * 60) / 60 )
+        -- time since planting - 5 minutes in minutes
+        -- maxing out at 1.  after 5 minutes, same priority as a tree
+        --key = math.min( 1, ((os.clock() - tree.updated) - 5 * 60) / 60 )
+        key = math.min( 1, ((os.clock() - tree.updated) - 60))
     elseif tree.state == TreeState.chopped then
-        key = ((os.clock() - tree.updated) - 3) / 15 -- time since chopping - 3 minutes in quarter minutes
+        key = ((os.clock() - tree.updated) - 2) / 15 -- time since chopping - 2 minutes in quarter minutes
     end
 
     return key
@@ -267,18 +269,20 @@ function TimeToAction( tree )
     return 1/0
 end
 
+-- end up one square south of the tree facing north
 function getToTree( t, tree )
     if tree.v[3] == nil then
-        driveToState( t, {x=tree.v[1], y=tree.v[2], z=nil, dir=0} )
+        driveToState( t, {x=tree.v[1], y=tree.v[2] - 1, z=nil, dir=0} )
         tree.v[3] = t( 'getState' ).z
     else
-        gostate( t, {x=tree.v[1], y=tree.v[2], z=tree.v[3], dir=0} )
+        gostate( t, {x=tree.v[1], y=tree.v[2] - 1, z=tree.v[3], dir=0} )
     end
 
     return true
 end
 
 -- assumes turtle is facing north at the trunk of the bottom left corner of the tree farm
+-- TODO: solve problem where tree grows bushy and surrounds the turtle.
 function TendTreeFarm( t, width, height )
     local startState = t( 'getState' )
 
@@ -348,7 +352,7 @@ function TendTreeFarm( t, width, height )
 
             while Next.topKey() == topKey do
                 if IdleTreeStates[ Next.top().state ] ~= nil then
-                    if not best and TreeValue( Next.top() ) > 0 or TreeValue( Next.top() ) > TreeValue( best ) then
+                    if not best and TreeValue( Next.top() ) > 0 or best and TreeValue( Next.top() ) > TreeValue( best ) then
                         best = Next.top()
                     end
                 end
@@ -383,12 +387,9 @@ function TendTreeFarm( t, width, height )
         if ActionQueue.topKey() < os.clock() then
             -- the tree in the action queue is ready to take action on.
             print( 'tree in action queue is ready to do a thing' )
-            DT(tree)
             getToTree( t, tree )
-            DT(tree)
             processTree( t, tree )
             print( 'actionqueue update'.. tree.v[1].. 'x'.. tree.v[2].. ':'..TimeToAction( tree) )
-            DT(tree)
             ActionQueue.update( tree, TimeToAction( tree ) )
             --Q.update( tree, tree )
         else
@@ -406,33 +407,11 @@ function TendTreeFarm( t, width, height )
                 --Q.update( tree, tree )
             else
                 -- wait for something to happen
-                os.sleep( 5 )
+                -- this could be event triggered
+                -- maybe take this time to refuel or empty inventory
+                os.sleep( 15 )
             end
         end
-        --[[
-        if TreeValue( Q.top() ) < 0 then
-            -- wait for something to happen
-            -- I could drive to the oldest sapling chopped tree
-            os.sleep( 5 )
-        else
-            tree = Q.top()
-            getToTree( t, tree )
-
-            -- working here
-            -- Problem is, I have time based keys.  A tree inserted
-            -- in state 'chopped' will never percolate up unless
-            -- I call update.  Maybe I iterate through all trees in
-            -- the queue and update them
-            -- maybe I put static states in
-            -- Maybe the key is instead the time when action is needed next -
-            -- like, "come back at this time".  A 2 part key like DSL, part
-            -- is the minimum time to come back, and tie breaker is the state.
-            if chopTree( t ) then
-                tree.state = TreeState.chopped
-                Q.update( tree, tree )
-            end
-        end
-        --]]
     end
 
     --gostate( t, oldState )
@@ -518,6 +497,17 @@ function processTree( t, tree )
         local age = os.clock() - tree.updated
         if facingTree( t ) then
             updateTreeState( tree, TreeState.tree )
+            processTree( t, tree )
+        elseif facingSapling( t ) then
+            --wish there was a nicer way to do this...
+            --I want everything to act as if it was set to 
+            --sapling at the time it was actually set to chopped
+            --(because that's when I plant them)
+            updateTreeState( tree, TreeState.sapling )
+            tree.updated = tree.updated - age
+        else
+            -- how?
+            updateTreeState( tree, TreeState.unknown )
             processTree( t, tree )
         end
         --don't bother looking if its been a while.
