@@ -252,10 +252,10 @@ function TreeValue( tree )
     elseif tree.state == TreeState.sapling then
         -- time since planting - 5 minutes in minutes
         -- maxing out at 1.  after 5 minutes, same priority as a tree
-        --key = math.min( 1, ((os.clock() - tree.updated) - 5 * 60) / 60 )
-        key = math.min( 1, ((os.clock() - tree.updated) - 60))
+        key = math.min( 1, ((os.clock() - tree.updated) - 4 * 60) / 60 )
+        --key = math.min( 1, ((os.clock() - tree.updated) - 60))
     elseif tree.state == TreeState.chopped then
-        key = ((os.clock() - tree.updated) - 2) / 15 -- time since chopping - 2 minutes in quarter minutes
+        key = ((os.clock() - tree.updated) - 2 * 60) / 15 -- time since chopping - 2 minutes in quarter minutes
     end
 
     return key
