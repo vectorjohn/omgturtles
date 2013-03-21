@@ -7,12 +7,12 @@ function PQueue( cmp )
     local heap = {}
     local next = 1
 
-    function swap( i1, i2 )
+    local function swap( i1, i2 )
         heap[ i1 ].idx, heap[ i2 ].idx = i2, i1
         heap[ i1 ], heap[ i2 ] = heap[ i2 ], heap[ i1 ]
     end
 
-    function percolateDown( i )
+    local function percolateDown( i )
         local li, ri = 2 * i, 2 * i + 1
         local left, right = heap[ li ], heap[ ri ]
         local cur = heap[ i ]
@@ -32,7 +32,7 @@ function PQueue( cmp )
         end
     end
 
-    function percolateUp( i )
+    local function percolateUp( i )
         if i >= next then return end
 
         local pi = math.floor( i / 2 )
@@ -52,14 +52,18 @@ function PQueue( cmp )
         nodes = function()
             local i = 1
             return function()
+                if i == next then return nil end
                 local v = heap[ i ]
-                if v == nil then return nil end
                 i = i + 1
                 return v.key, v.value
             end
         end,
 
         insert = function( val, key )
+            if nodemap[ val ] then
+                self.update( val, key )
+                return
+            end
             local node = {key = key, value = val, idx = next}
             nodemap[ val ] = node
 
@@ -70,9 +74,9 @@ function PQueue( cmp )
         end,
 
         -- TODO: replace this with percolation
-        update = function( node, key )
-            if self.remove( node ) then
-                self.insert( node, key )
+        update = function( val, key )
+            if self.remove( val ) then
+                self.insert( val, key )
             end
         end,
 
@@ -112,7 +116,8 @@ function PQueue( cmp )
         end,
 
         topKey = function()
-            return heap[1] and heap[1].key
+            if heap[1] == nil then return nil end
+            return heap[1].key
         end,
 
         pop = function()

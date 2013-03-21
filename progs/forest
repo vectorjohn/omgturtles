@@ -1,0 +1,28 @@
+function cc_include( f )
+	if require then
+        package.path = '../?.lua;'..package.path
+		require( f )
+	else
+		dofile( '/john/'..f..'.lua' )
+	end
+end
+
+cc_include( 'util' )
+cc_include( 'dstarlite' )
+cc_include( 'coord_move' )
+cc_include( 'forest' )
+-- cc_include( 'NodeMap' )
+cc_include( 'PQueue' )
+
+t = trackable( turtle )
+
+local args = {...}
+
+if table.getn( args ) ~= 2 then
+    print( 'Usage: forest width height' )
+    return
+end
+
+
+--treefarm( t, tonumber( args[1] ), tonumber( args[2] ) )
+TendTreeFarm( t, tonumber( args[1] ), tonumber( args[2] ) )
