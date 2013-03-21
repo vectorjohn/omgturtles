@@ -3,7 +3,7 @@ function faceDirection( t, d, curDir )
     -- frame shift so that turtle is facing 0 (north).  Delta is the turn direction and count
     -- Also, math.mod() is different than mod operator - math.mod handles negatives
     local delta = d - curDir
-    print( 'face ', d, 'from', curDir )
+    --print( 'face ', d, 'from', curDir )
 
     if delta == 0 then
         return
@@ -20,7 +20,7 @@ function faceDirection( t, d, curDir )
     else cmd = 'turnLeft'
     end
 
-    print( 'turning: '..cmd )
+    --print( 'turning: '..cmd )
     local ccw = 1
     if delta < 0 then ccw = -1 end
     for i = ccw, delta, ccw do
@@ -57,4 +57,22 @@ function CoordMove( t, v, cost, i )
     return cost
 end
 
+function DriveTo( t, v, cost, i )
+    local state = t( 'getState' )
+    local dx, dy = v[1], v[2]
+    local dir = dx + dy - 1 * math.abs( dy )
+    dir = math.mod( dir + 4, 4 )
 
+    if dx == 0 and dy == 0 then
+        -- DStarLite sometimes says to move to the current location.  I may or may not change that.
+        return cost
+    end
+
+    faceDirection( t, dir, state.dir )
+
+    if not drive( t, 1 ) then
+        return 1 / 0
+    end
+
+    return cost
+end

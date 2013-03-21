@@ -11,7 +11,21 @@ cc_include( 'util' )
 cc_include( 'dstarlite' )
 cc_include( 'coord_move' )
 cc_include( 'mine' )
+-- cc_include( 'NodeMap' )
+cc_include( 'PQueue' )
 
 t = trackable( turtle )
 
-mine( t, 1, 2, 16, true )
+
+local args = {...}
+
+if table.getn( args ) > 0 and table.getn( args ) < 3 then
+    print( 'Usage: mine [radius depth num [mapfile]]' )
+    return
+end
+
+if table.getn( args ) == 0 then
+    args = { 1, 2, 16 }
+end
+
+mine( t, tonumber( args[1] ), tonumber( args[2] ), tonumber( args[3] ), true, tonumber( args[4] ) )

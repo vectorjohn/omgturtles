@@ -1,5 +1,5 @@
 --SHIM
-verbose = {}    --this is a map of features to be verbose about
+verbose = false --{}    --this is a map of features to be verbose about
 mode = 'production' -- production or development
 
 if mode == 'development' then
@@ -605,7 +605,7 @@ function DStarLite( start, goal, map, onmove )
 
     function ComputeShortestPath()
         local iters = 0
-        io.write( 'Driving to: ' )
+        dlog( 'Driving to: ' )
         DN( start )
 
         while U.topKey() and ( CompareKey( U.topKey(), CalculateKey( goal ) ) < 0 or goal.rhs ~= goal.g ) do

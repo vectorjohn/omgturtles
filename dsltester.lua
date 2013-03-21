@@ -1,8 +1,12 @@
+if require then
+    package.path = '../?.lua;'..package.path
+end
+
 function cc_include( f )
-	if require then
+    if require then
 		require( f )
 	else
-		dofile( '/john/'..f..'.lua' )
+        dofile( '/'.. shell.dir().. '/'.. f.. '.lua' )
 	end
 end
 

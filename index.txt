@@ -2,11 +2,15 @@ index.txt
 update.lua
 util.lua
 mine.lua
+forest.lua
 dsltester.lua
 dstarlite.lua
 coord_move.lua
+PQueue.lua
+pqt.lua
 progs/
 progs/libtest.lua
 progs/carpet.lua
 progs/mine
+progs/forest
 progs/dsg

@@ -1,3 +1,15 @@
+if require then
+    package.path = '../?.lua;'..package.path
+end
+
+function cc_include( f )
+    if require then
+		require( f )
+	else
+        dofile( '/'.. shell.dir().. '/'.. f.. '.lua' )
+	end
+end
+
 
 if not math.mod then
     function math.mod( n, d )
@@ -110,6 +122,10 @@ function trackable( t )
 			}
 		end,
 
+        setState = function( nx, ny, nz, ndir )
+            x, y, z, dir = nx, ny, nz, ndir
+        end,
+
 		pushState = function()
 			local tend = table.getn( states )
 			states[ tend + 1 ] = moves.getState()
@@ -170,7 +186,7 @@ function trackable( t )
 
 		-- not a turtle command, just an internal one
 		if moves[ cmd ] ~= nil then
-			return moves[ cmd ]()
+			return moves[ cmd ]( unpack( arg ) )
 		end
 	end
 end
