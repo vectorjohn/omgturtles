@@ -173,7 +173,7 @@ function selectSapling( t )
 end
 
 function selectTree( t )
-    if t( 'getItemCount', 16 ) > 1 then
+    if t( 'getItemCount', 16 ) > 0 then
         t( 'select', 16 )
         return true
     end
@@ -281,6 +281,10 @@ function getToTree( t, tree )
     return true
 end
 
+function DT(tree)
+    print( 'Tree '.. tree.state.. ': <'.. tree.v[1].. ','.. tree.v[2].. '>' )
+end
+
 -- assumes turtle is facing north at the trunk of the bottom left corner of the tree farm
 -- TODO: solve problem where tree grows bushy and surrounds the turtle.
 function TendTreeFarm( t, width, height )
@@ -318,7 +322,7 @@ function TendTreeFarm( t, width, height )
     end
 
 
-    function neighbors( tree )
+    local function neighbors( tree )
         local x, y = tree.v[1], tree.v[2]
         local nbrs = {}
         local coords = {
@@ -338,7 +342,7 @@ function TendTreeFarm( t, width, height )
         return nbrs
     end
 
-    function closestTree( tree )
+    local function closestTree( tree )
         io.write( 'closest tree to: ' )
         DT( tree )
 
@@ -371,10 +375,6 @@ function TendTreeFarm( t, width, height )
         end
 
         return nil
-    end
-
-    local function DT(tree)
-        print( 'Tree '.. tree.state.. ': <'.. tree.v[1].. ','.. tree.v[2].. '>' )
     end
 
     while true do
