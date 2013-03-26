@@ -9,6 +9,8 @@ function _gotocoord( t, map, xf,yf,zf, x, y, z )
     DStarLite( {xf, yf, zf, 0}, {x, y, z, 0}, map, function( v, cost, i )
         return CoordMove( t, v, cost, i )
     end)
+
+    return true
 end
 
 function driveToCoord( t, x, y )
@@ -17,30 +19,40 @@ function driveToCoord( t, x, y )
     DStarLite( {state.x, state.y, 0, 0}, {x, y, 0, 0}, nil, function( v, cost, i )
         return DriveTo( t, v, cost, i )
     end)
+
+    return true
 end
 
 function gotocoord( t, xf, yf, zf, x, y, z )
-    _gotocoord( t, nil, xf, yf, zf, x, y, z )
+    return _gotocoord( t, nil, xf, yf, zf, x, y, z )
 end
 
 function gostate( t, to )
     local from = t( 'getState' )
-    gotocoord( t, from.x, from.y, from.z, to.x, to.y, to.z )
+    if not gotocoord( t, from.x, from.y, from.z, to.x, to.y, to.z ) then
+        return false
+    end
     from = t( 'getState' )
     while from.dir ~= to.dir do
         t( 'turnLeft' )
         from = t( 'getState' )
     end
+
+    return true
 end
 
 function driveToState( t, to )
     local from = t( 'getState' )
-    driveToCoord( t, to.x, to.y )
+    if not driveToCoord( t, to.x, to.y ) then
+        return false
+    end
     from = t( 'getState' )
     while from.dir ~= to.dir do
         t( 'turnLeft' )
         from = t( 'getState' )
     end
+
+    return true
 end
 
 --finds a block that matches the block in front, or is empty
@@ -62,6 +74,26 @@ function findMatchOrEmpty( t )
     return false
 end
 
+function selectEmpty( t )
+    for i=1, 16 do
+        if t( 'getItemCount', i ) == 0 then
+            t( 'select', i )
+            return i
+        end
+    end
+    return false
+end
+
+function countEmptySlots( t )
+    local empty = 0
+    for i = 1, 16 do
+        if t( 'getItemCount', i ) == 0 then
+            empty = empty + 1
+        end
+    end
+    return empty
+end
+
 function findMatch( t, from, to )
     for i = from, to do
         t( 'select', i )
@@ -73,15 +105,102 @@ function findMatch( t, from, to )
     return false
 end
 
-function emptyInventory( t )
-    for i = 5, 15 do
-        t( 'select', i )
-        t( 'drop' )
+function emptyInventory( t, inv, places )
+    if not places.harvest or not gostate( t, places.harvest ) then
+        print( 'Failed to empty inventory - could not get to harvest chest' )
+        return false
     end
 
-    -- keep the last slot for identifying
-    t( 'select', 16 )
-    t( 'drop', t( 'getItemCount', 16 ) - 1 )
+    local droppedAny = false
+    for i = 1, 16 do
+        t( 'select', i )
+        if not t( 'drop', math.max( 0, t( 'getItemCount', i ) - inv[i] ) ) then
+            return droppedAny
+        end
+
+        droppedAny = droppedAny or t( 'getItemCount', i ) == 0
+    end
+
+    return droppedAny
+end
+
+--assumes slot 15 is a full fuel can
+function refuel( t, places )
+    local cfg = t( 'getConfig' )
+    if not cfg.safeFuelLevel then
+        cfg.safeFuelLevel = 1000
+        t( 'setConfig', 'safeFuelLevel', cfg.safeFuelLevel )
+    end
+
+    if cfg.safeFuelLevel < t( 'getFuelLevel' ) then
+        print( 'No need to refuel' )
+        return true
+    end
+
+    if not places.refuel or not gostate( t, places.refuel ) then
+        -- do NOT refuel.  Didn't find my way to a chest.
+        print( 'Failed to refuel - could not find refuel chest' )
+        return false
+    end
+
+    local slot = selectEmpty( t )
+    if not slot then
+        print( 'Failed to refuel - could not find an empty slot' )
+        return false
+    end
+
+    local trash = {}
+    while t( 'getFuelLevel' ) < cfg.safeFuelLevel do
+        slot = selectEmpty( t )
+        if not slot then
+            if not bottleReturn( t, places, trash ) then
+                print( 'Failed to refuel - could not dispose of empties' )
+                return false
+            end
+            trash = {}
+            slot = selectEmpty( t )
+
+            if not gostate( t, places.refuel ) then
+                print( 'Failed to refuel - could not get back to fuel chest after bottle return' )
+                return false
+            end
+        end
+
+        if not t( 'suck' ) then
+            print( 'Failed to refuel - No more fuel in the fuel chest' )
+            return false
+        end
+
+        if not t( 'refuel' ) then
+            table.insert( trash, slot )
+            print( 'Refueling - who put this shit in the fuel chest?  It is not delicious.' )
+        else
+            if trash[1] then
+                t( 'transferTo', trash[1], 1 )  -- try combining the empty fuel cans
+            else
+                table.insert( trash, slot )
+            end
+        end
+    end
+
+    if t( 'getItemCount', slot ) > 0 then
+        bottleReturn( t, places, trash )
+    end
+
+    return true
+end
+
+function bottleReturn( t, places, trash )
+    if not places.bottlereturn or not gostate( t, places.bottlereturn ) then
+        return false
+    end
+
+    for i=1, table.getn( trash ) do
+        if not t( 'drop' ) then
+            return false
+        end
+    end
+    return true
 end
 
 function chopTree( t )
@@ -116,6 +235,9 @@ function followChop( t )
         followChop( t )
         t( 'up' )
     end
+
+    --[[ at least for rubber, this isn't necessary.  and it wouldn't really work anyway
+    --it's supposed to find branches, but it would not find diagonal ones.
     for i=1, 4 do
         if t( 'compare' ) then
             local state = t( 'getState' )
@@ -127,6 +249,7 @@ function followChop( t )
 
         t( 'turnLeft' )
     end
+    --]]
 end
 
 function findSaplings( t )
@@ -134,11 +257,11 @@ function findSaplings( t )
     t( 'select', 1 )
     drive( t, 1 )
     t( 'suckDown' )
-    spiralDo( t, 2, function()
-        t( 'down' )
-        while t( 'suck' ) do end
+    spiralDo( t, 3, function()
+        while t( 'suckDown' ) do end
     end)
-    gostate( t, state )
+    t( 'down' )
+    --gostate( t, state )   --experimentally leaving this out to save fuel.
 end
 
 function cctimestamp()
@@ -261,9 +384,9 @@ function TreeValue( tree )
         -- time since planting - 5 minutes in minutes
         -- maxing out at 1.  after 5 minutes, same priority as a tree
         key = math.min( 1, ((os.clock() - tree.updated) - 10 * 60) / 60 )
-        --key = math.min( 1, ((os.clock() - tree.updated) - 60))
+        --key = math.min( 1, ((os.clock() - tree.updated) - 60))  -- debugging - fast
     elseif tree.state == TreeState.chopped then
-        key = ((os.clock() - tree.updated) - 1 * 60) / 15 -- time since chopping - 2 minutes in quarter minutes
+        key = ((os.clock() - tree.updated) - 1 * 60) / 5 -- time since chopping - 2 minutes in quarter minutes
     end
 
     return key
@@ -316,6 +439,24 @@ function TendTreeFarm( t, width, height )
     t( 'turnLeft' )
     drive( t, 3 )
     t( 'setState', 0, 0, 0, 0 )
+
+    --I don't like turtle config.  I want something seperate.  a "context" that is independent of the turtle
+    t( 'setConfig', 'safeFuelLevel', width * height * spacing * 5 )
+    t( 'setConfig', 'emergencyFuelLevel', (width + height) * spacing + 10 )
+    t( 'setConfig', 'safeEmptySlots', 2 )
+
+    local places = {
+        harvest = {x=0, y=-3, z=0, dir=2},
+        refuel = {x=2, y=-3, z=0, dir=2},
+        bottlereturn = {x=4, y=-3, z=0, dir=2},
+    }
+
+    local inv = {
+        width * height, 0, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 1,
+    }
 
     local chestState = {x=0, y=-3, z = 0, 2 }
 
@@ -388,7 +529,22 @@ function TendTreeFarm( t, width, height )
         return nil
     end
 
+    local cfg = t( 'getConfig' )
     while true do
+
+        if t( 'getFuelLevel' ) < cfg.emergencyFuelLevel or countEmptySlots( t ) < cfg.safeEmptySlots then
+            if not emptyInventory( t, inv, places ) then
+                print( 'No need to waste fuel.  Stopping.' )
+                gostate( t, startState )
+                return
+            end
+            if not refuel( t, places ) then
+                print( 'Ow ow ow ow ow!' )
+                gostate( t, startState )
+                return
+            end
+        end
+
         local tree = ActionQueue.top()
         
         if ActionQueue.topKey() == math.huge then
@@ -420,12 +576,16 @@ function TendTreeFarm( t, width, height )
                 -- wait for something to happen
                 -- this could be event triggered
                 -- maybe take this time to refuel or empty inventory
+                if t( 'getFuelLevel' ) < cfg.safeFuelLevel then
+                    emptyInventory( t, inv, places )
+                    refuel( t, places )
+                end
                 os.sleep( 15 )
             end
         end
     end
 
-    --gostate( t, oldState )
+    --gostate( t, startState )
 end
 
 function makeRounds( t, width, height )

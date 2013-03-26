@@ -69,11 +69,12 @@ function hillClimb( t, range, cmp )
 end
 
 function trackable( t )
-	local x = 0
-	local y = 0
-	local z = 0
-	local dir = 0
-	local states = {}
+    local x = 0
+    local y = 0
+    local z = 0
+    local dir = 0
+    local states = {}
+    local config = {}
 	
 	local moves = {}
 
@@ -121,6 +122,20 @@ function trackable( t )
 				dir = dir,
 			}
 		end,
+
+        getConfig = function( k )
+            if k == nil then
+                return config
+            end
+            return config[ k ]
+        end,
+
+        setConfig = function( k, v )
+            if type( k ) == 'table' then
+                config = k
+            end
+            config[ k ] = v
+        end,
 
         setState = function( nx, ny, nz, ndir )
             x, y, z, dir = nx, ny, nz, ndir
