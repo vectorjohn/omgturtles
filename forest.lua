@@ -163,11 +163,19 @@ function treefarm( t, width, height )
 end
 
 function selectSapling( t )
-    for i = 1, 4 do
-        if t( 'getItemCount', i ) > 1 then
+    for i = 1, 1 do
+        if t( 'getItemCount', i ) > 0 then
             t( 'select', i )
             return true
         end
+    end
+    return false
+end
+
+function selectSaplingToUse( t )
+    if t( 'getItemCount', 1 ) > 1 then
+        selectSapling( t )
+        return true
     end
     return false
 end
@@ -181,7 +189,7 @@ function selectTree( t )
 end
 
 function plantTree( t )
-    if selectSapling( t ) then
+    if selectSaplingToUse( t ) then
         return t( 'place' )
     end
     print( 'Out of saplings' )
@@ -255,7 +263,7 @@ function TreeValue( tree )
         key = math.min( 1, ((os.clock() - tree.updated) - 10 * 60) / 60 )
         --key = math.min( 1, ((os.clock() - tree.updated) - 60))
     elseif tree.state == TreeState.chopped then
-        key = ((os.clock() - tree.updated) - 2 * 60) / 15 -- time since chopping - 2 minutes in quarter minutes
+        key = ((os.clock() - tree.updated) - 1 * 60) / 15 -- time since chopping - 2 minutes in quarter minutes
     end
 
     return key
@@ -263,7 +271,7 @@ end
 
 function TimeToAction( tree )
     if tree.state == TreeState.chopped then
-        return tree.updated + 2 * 60
+        return tree.updated + 1.4 * 60
     end
 
     return 1/0
@@ -348,6 +356,7 @@ function TendTreeFarm( t, width, height )
 
         local Next = PQueue( function( a, b ) return a - b end )
         local seen = {}
+        local haveSaps = selectSaplingToUse( t )
 
         Next.insert( tree, 0 )
         while Next.top() do
@@ -356,7 +365,9 @@ function TendTreeFarm( t, width, height )
 
             while Next.topKey() == topKey do
                 if IdleTreeStates[ Next.top().state ] ~= nil then
-                    if not best and TreeValue( Next.top() ) > 0 or best and TreeValue( Next.top() ) > TreeValue( best ) then
+                    local canplant = Next.top().state ~= TreeState.empty or haveSaps
+                    if not best and TreeValue( Next.top() ) > 0 and canplant or best and TreeValue( Next.top() ) > TreeValue( best ) and canplant then
+
                         best = Next.top()
                     end
                 end
