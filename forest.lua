@@ -523,8 +523,8 @@ function TendTreeFarm( t, width, height )
     local map = {}
 
     --I don't like turtle config.  I want something seperate.  a "context" that is independent of the turtle
-    t( 'setConfig', 'safeFuelLevel', width * height * spacing * 5 )
-    t( 'setConfig', 'emergencyFuelLevel', (width + height) * spacing + 10 )
+    t( 'setConfig', 'safeFuelLevel', (width-1) * height * spacing * 10  )
+    t( 'setConfig', 'emergencyFuelLevel', (width + height) * spacing * 4 + 10 )
     t( 'setConfig', 'safeEmptySlots', 2 )
 
     local places = {
