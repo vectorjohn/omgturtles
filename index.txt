@@ -7,7 +7,6 @@ dsltester.lua
 dstarlite.lua
 coord_move.lua
 PQueue.lua
-pqt.lua
 progs/
 progs/libtest.lua
 progs/carpet.lua

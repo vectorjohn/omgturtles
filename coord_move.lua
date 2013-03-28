@@ -28,12 +28,23 @@ function faceDirection( t, d, curDir )
     end
 end
 
+function faceCoord( t, v )
+    local state = t( 'getState' )
+    local dx, dy = v[1], v[2]
+    local dir = dx + dy - 1 * math.abs( dy )
+    dir = math.mod( dir + 4, 4 )
+
+    if dx == 0 and dy == 0 then
+        return
+    end
+
+    faceDirection( t, dir, state.dir )
+end
+
 function CoordMove( t, v, cost, i )
     local state = t( 'getState' )
     local dx, dy, dz = v[1], v[2], v[3]
-    local dir = dx + dy - 1 * math.abs( dy )
     local cmd = 'forward'
-    dir = math.mod( dir + 4, 4 )
 
     if dx == 0 and dy == 0 and dz == 0 then
         -- DStarLite sometimes says to move to the current location.  I may or may not change that.
@@ -41,7 +52,7 @@ function CoordMove( t, v, cost, i )
     end
 
     if dx ~= 0 or dy ~= 0 then
-        faceDirection( t, dir, state.dir )
+        faceCoord( t, v )
     end
 
     if dz ~= 0 then

@@ -1,3 +1,10 @@
+function _generic_goto( t, map, move_fn, xf, yf, zf, x, y, z )
+    DStarLite( {xf, yf, zf, 0}, {x, y, z, 0}, map, function( v, cost, i )
+        return move_fn( t, v, cost, i )
+    end)
+
+    return true
+end
 
 function _gotocoord( t, map, xf,yf,zf, x, y, z )
 
@@ -6,27 +13,86 @@ function _gotocoord( t, map, xf,yf,zf, x, y, z )
         local state = t( 'getState' )
         xf, yf, zf = state.x, state.y, state.z
     end
-    DStarLite( {xf, yf, zf, 0}, {x, y, z, 0}, map, function( v, cost, i )
-        return CoordMove( t, v, cost, i )
-    end)
 
-    return true
+    return _generic_goto( t, map, CoordMove, xf, yf, zf, x, y, z )
 end
 
 function driveToCoord( t, x, y )
     local state = t( 'getState' )
-
-    DStarLite( {state.x, state.y, 0, 0}, {x, y, 0, 0}, nil, function( v, cost, i )
-        return DriveTo( t, v, cost, i )
-    end)
-
-    return true
+    return _generic_goto( t, nil, DriveTo, state.x, state.y, 0, x, y, 0 )
 end
 
 function gotocoord( t, xf, yf, zf, x, y, z )
     return _gotocoord( t, nil, xf, yf, zf, x, y, z )
 end
 
+function hackMoveWrap( move_fn, inv )
+    return function( t, v, cost, i)
+
+        local newcost = move_fn( t, v, cost, i )
+
+        if newcost > cost then
+            -- I'm assuming move_fn was trying to move forward, up, or down.
+            local dig, compare = 'dig', 'compare'
+            if v[3] == 1 then dig, compare = 'digUp', 'compareUp' end
+            if v[3] == -1 then dig, compare = 'digDown', 'compareDown' end
+            
+            for i=1,16 do
+                if selectIfHackable( t, i, inv[i] ) and t( compare ) and t( dig ) then
+                    -- was able to break it instead
+                    return move_fn( t, v, cost, i )
+                end
+            end
+        end
+
+        return newcost
+    end
+end
+
+function hackto( t, inv, x, y, z )
+    local state = t( 'getState' )
+    local xf, yf, zf = state.x, state.y, state.z
+    return _generic_goto( t, nil, hackMoveWrap( CoordMove, inv ), xf, yf, zf, x, y, z )
+end
+
+function hackDriveTo( t, inv, x, y )
+    local state = t( 'getState' )
+    return _generic_goto( t, nil, hackMoveWrap( DriveTo, inv ), state.x, state.y, 0, x, y, 0 )
+end
+
+function hackToState( t, inv, to )
+
+    if not hackto( t, inv, to.x, to.y, to.z ) then
+        return false
+    end
+
+    local from = t( 'getState' )
+    while from.dir ~= to.dir do
+        t( 'turnLeft' )
+        from = t( 'getState' )
+    end
+
+    return true
+end
+
+function hackDriveToState( t, inv, to )
+    if not hackDriveTo( t, inv, to.x, to.y ) then
+        return false
+    end
+
+    local from = t( 'getState' )
+    while from.dir ~= to.dir do
+        t( 'turnLeft' )
+        from = t( 'getState' )
+    end
+
+    return true
+end
+
+local gostate = hackToState
+local driveToState = hackDriveToState
+
+--[[
 function gostate( t, to )
     local from = t( 'getState' )
     if not gotocoord( t, from.x, from.y, from.z, to.x, to.y, to.z ) then
@@ -42,11 +108,11 @@ function gostate( t, to )
 end
 
 function driveToState( t, to )
-    local from = t( 'getState' )
     if not driveToCoord( t, to.x, to.y ) then
         return false
     end
-    from = t( 'getState' )
+
+    local from = t( 'getState' )
     while from.dir ~= to.dir do
         t( 'turnLeft' )
         from = t( 'getState' )
@@ -54,6 +120,7 @@ function driveToState( t, to )
 
     return true
 end
+--]]
 
 --finds a block that matches the block in front, or is empty
 function findMatchOrEmpty( t )
@@ -106,7 +173,7 @@ function findMatch( t, from, to )
 end
 
 function emptyInventory( t, inv, places )
-    if not places.harvest or not gostate( t, places.harvest ) then
+    if not places.harvest or not gostate( t, inv, places.harvest ) then
         print( 'Failed to empty inventory - could not get to harvest chest' )
         return false
     end
@@ -114,7 +181,11 @@ function emptyInventory( t, inv, places )
     local droppedAny = false
     for i = 1, 16 do
         t( 'select', i )
-        if not t( 'drop', math.max( 0, t( 'getItemCount', i ) - inv[i] ) ) then
+        local item = inv[i]
+        if type(item) ~= 'table' then
+            item = {'any', item or 0}
+        end
+        if not t( 'drop', math.max( 0, t( 'getItemCount', i ) - item[2] ) ) then
             return droppedAny
         end
 
@@ -125,7 +196,7 @@ function emptyInventory( t, inv, places )
 end
 
 --assumes slot 15 is a full fuel can
-function refuel( t, places )
+function refuel( t, inv, places )
     local cfg = t( 'getConfig' )
     if not cfg.safeFuelLevel then
         cfg.safeFuelLevel = 1000
@@ -137,7 +208,7 @@ function refuel( t, places )
         return true
     end
 
-    if not places.refuel or not gostate( t, places.refuel ) then
+    if not places.refuel or not gostate( t, inv, places.refuel ) then
         -- do NOT refuel.  Didn't find my way to a chest.
         print( 'Failed to refuel - could not find refuel chest' )
         return false
@@ -153,14 +224,14 @@ function refuel( t, places )
     while t( 'getFuelLevel' ) < cfg.safeFuelLevel do
         slot = selectEmpty( t )
         if not slot then
-            if not bottleReturn( t, places, trash ) then
+            if not bottleReturn( t, inv, places, trash ) then
                 print( 'Failed to refuel - could not dispose of empties' )
                 return false
             end
             trash = {}
             slot = selectEmpty( t )
 
-            if not gostate( t, places.refuel ) then
+            if not gostate( t, inv, places.refuel ) then
                 print( 'Failed to refuel - could not get back to fuel chest after bottle return' )
                 return false
             end
@@ -184,14 +255,14 @@ function refuel( t, places )
     end
 
     if t( 'getItemCount', slot ) > 0 then
-        bottleReturn( t, places, trash )
+        bottleReturn( t, inv, places, trash )
     end
 
     return true
 end
 
-function bottleReturn( t, places, trash )
-    if not places.bottlereturn or not gostate( t, places.bottlereturn ) then
+function bottleReturn( t, inv, places, trash )
+    if not places.bottlereturn or not gostate( t, inv, places.bottlereturn ) then
         return false
     end
 
@@ -381,9 +452,9 @@ function TreeValue( tree )
     elseif tree.state == TreeState.unknown then
         key = 3
     elseif tree.state == TreeState.sapling then
-        -- time since planting - 5 minutes in minutes
-        -- maxing out at 1.  after 5 minutes, same priority as a tree
-        key = math.min( 1, ((os.clock() - tree.updated) - 10 * 60) / 60 )
+        -- time since planting - a few minutes in minutes
+        -- maxing out at 1.  after some time, same priority as a tree
+        key = math.min( 1, ((os.clock() - tree.updated) - 15 * 60) / 60 )
         --key = math.min( 1, ((os.clock() - tree.updated) - 60))  -- debugging - fast
     elseif tree.state == TreeState.chopped then
         key = ((os.clock() - tree.updated) - 1 * 60) / 5 -- time since chopping - 2 minutes in quarter minutes
@@ -401,12 +472,12 @@ function TimeToAction( tree )
 end
 
 -- end up one square south of the tree facing north
-function getToTree( t, tree )
+function getToTree( t, inv, tree )
     if tree.v[3] == nil then
-        driveToState( t, {x=tree.v[1], y=tree.v[2] - 1, z=nil, dir=0} )
+        driveToState( t, inv, {x=tree.v[1], y=tree.v[2] - 1, z=nil, dir=0} )
         tree.v[3] = t( 'getState' ).z
     else
-        gostate( t, {x=tree.v[1], y=tree.v[2] - 1, z=tree.v[3], dir=0} )
+        gostate( t, inv, {x=tree.v[1], y=tree.v[2] - 1, z=tree.v[3], dir=0} )
     end
 
     return true
@@ -414,6 +485,22 @@ end
 
 function DT(tree)
     print( 'Tree '.. tree.state.. ': <'.. tree.v[1].. ','.. tree.v[2].. '>' )
+end
+
+local Hackable = {
+    leaf = true,
+    grass = true,
+    yflower = true,
+    rflower = true,
+}
+
+function selectIfHackable( t, slot, item )
+
+    if type( item ) == 'table' and Hackable[ item[1] ] and t( 'getItemCount', slot ) > 0 then
+        t( 'select', slot )
+        return true
+    end
+    return false
 end
 
 -- assumes turtle is facing north at the trunk of the bottom left corner of the tree farm
@@ -435,11 +522,6 @@ function TendTreeFarm( t, width, height )
     local spacing = 6   -- = space between trees + 1
     local map = {}
 
-    t( 'turnLeft' )
-    t( 'turnLeft' )
-    drive( t, 3 )
-    t( 'setState', 0, 0, 0, 0 )
-
     --I don't like turtle config.  I want something seperate.  a "context" that is independent of the turtle
     t( 'setConfig', 'safeFuelLevel', width * height * spacing * 5 )
     t( 'setConfig', 'emergencyFuelLevel', (width + height) * spacing + 10 )
@@ -452,13 +534,17 @@ function TendTreeFarm( t, width, height )
     }
 
     local inv = {
-        width * height, 0, 0, 0,
+        {'sapling',width * height}, 0, 0, 0,
+        {'leaf',1}, {'grass',1}, 0, 0,              --{'yflower',1}, {'rflower',1},
         0, 0, 0, 0,
-        0, 0, 0, 0,
-        0, 0, 0, 1,
+        0, 0, 0, {'tree',1},
     }
 
-    local chestState = {x=0, y=-3, z = 0, 2 }
+    t( 'turnLeft' )
+    t( 'turnLeft' )
+    drive( t, 3 )
+    hackToState( t, inv, {x=0, y=-3, z=0, dir=2} )
+    t( 'setState', 0, 0, 0, 0 )
 
     for x = 0, (width - 1) * spacing, spacing do
         map[ x ] = {}
@@ -535,12 +621,12 @@ function TendTreeFarm( t, width, height )
         if t( 'getFuelLevel' ) < cfg.emergencyFuelLevel or countEmptySlots( t ) < cfg.safeEmptySlots then
             if not emptyInventory( t, inv, places ) then
                 print( 'No need to waste fuel.  Stopping.' )
-                gostate( t, startState )
+                gostate( t, inv, startState )
                 return
             end
-            if not refuel( t, places ) then
+            if not refuel( t, inv, places ) then
                 print( 'Ow ow ow ow ow!' )
-                gostate( t, startState )
+                gostate( t, inv, startState )
                 return
             end
         end
@@ -553,10 +639,10 @@ function TendTreeFarm( t, width, height )
 
         if ActionQueue.topKey() < os.clock() then
             -- the tree in the action queue is ready to take action on.
-            print( 'tree in action queue is ready to do a thing' )
-            getToTree( t, tree )
+            --print( 'tree in action queue is ready to do a thing' )
+            getToTree( t, inv, tree )
             processTree( t, tree )
-            print( 'actionqueue update'.. tree.v[1].. 'x'.. tree.v[2].. ':'..TimeToAction( tree) )
+            --print( 'actionqueue update'.. tree.v[1].. 'x'.. tree.v[2].. ':'..TimeToAction( tree) )
             ActionQueue.update( tree, TimeToAction( tree ) )
             --Q.update( tree, tree )
         else
@@ -568,7 +654,7 @@ function TendTreeFarm( t, width, height )
             if tree then
                 io.write( 'processing closest tree: ' )
                 DT( tree )
-                getToTree( t, tree )
+                getToTree( t, inv, tree )
                 processTree( t, tree )
                 ActionQueue.update( tree, TimeToAction( tree ) )
                 --Q.update( tree, tree )
@@ -578,9 +664,10 @@ function TendTreeFarm( t, width, height )
                 -- maybe take this time to refuel or empty inventory
                 if t( 'getFuelLevel' ) < cfg.safeFuelLevel then
                     emptyInventory( t, inv, places )
-                    refuel( t, places )
+                    refuel( t, inv, places )
+                else
+                    os.sleep( 15 )
                 end
-                os.sleep( 15 )
             end
         end
     end
