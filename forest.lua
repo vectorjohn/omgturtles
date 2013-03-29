@@ -1,3 +1,35 @@
+
+logging = true
+
+if ( os.getComputerLabel() or '' ) == '' then
+    os.setComputerLabel( os.getComputerID() )
+end
+
+if logging then
+    oprint = print
+    owrite = io.write
+    log = '/john/forest_'.. os.getComputerLabel().. '.log'
+
+    function mcstamp()
+        return os.day().. 'T'.. os.time()
+    end
+
+    function print( s )
+        local fh = fs.open( log, 'a' )
+        fh.write( mcstamp().. ': '.. s.. '\n' )
+        fh.close()
+        oprint( s )
+    end
+
+    function xxiowrite( s )
+        local fh = fs.open( log, 'a' )
+        fs.write( mcstamp().. ': '.. s.. '\n' )
+        fs.close()
+        owrite( s )
+    end
+end
+
+
 function _generic_goto( t, map, move_fn, xf, yf, zf, x, y, z )
     DStarLite( {xf, yf, zf, 0}, {x, y, z, 0}, map, function( v, cost, i )
         return move_fn( t, v, cost, i )
