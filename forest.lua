@@ -248,7 +248,7 @@ function refuel( t, inv, places )
         else
             if trash[1] then
                 t( 'transferTo', trash[1], 1 )  -- try combining the empty fuel cans
-            else
+            elseif t( 'getItemCount', slot ) == 1 then
                 table.insert( trash, slot )
             end
         end
@@ -266,7 +266,12 @@ function bottleReturn( t, inv, places, trash )
         return false
     end
 
+    if table.getn( trash ) == 0 then
+        return false
+    end
+
     for i=1, table.getn( trash ) do
+        t( 'select', trasn[i] )
         if not t( 'drop' ) then
             return false
         end
