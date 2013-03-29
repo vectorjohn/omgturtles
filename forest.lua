@@ -303,7 +303,7 @@ function bottleReturn( t, inv, places, trash )
     end
 
     for i=1, table.getn( trash ) do
-        t( 'select', trasn[i] )
+        t( 'select', trash[i] )
         if not t( 'drop' ) then
             return false
         end
