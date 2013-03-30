@@ -1,5 +1,5 @@
 
-function faceDirection( t, d, curDir )
+function _faceDirection( t, d, curDir )
     -- frame shift so that turtle is facing 0 (north).  Delta is the turn direction and count
     -- Also, math.mod() is different than mod operator - math.mod handles negatives
     local delta = d - curDir
@@ -38,7 +38,7 @@ function faceCoord( t, v )
         return
     end
 
-    faceDirection( t, dir, state.dir )
+    _faceDirection( t, dir, state.dir )
 end
 
 function CoordMove( t, v, cost, i )
@@ -79,7 +79,7 @@ function DriveTo( t, v, cost, i )
         return cost
     end
 
-    faceDirection( t, dir, state.dir )
+    _faceDirection( t, dir, state.dir )
 
     if not drive( t, 1 ) then
         return 1 / 0
