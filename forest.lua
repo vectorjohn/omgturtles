@@ -6,19 +6,17 @@ if ( os.getComputerLabel() or '' ) == '' then
 end
 
 if logging then
-    oprint = print
-    owrite = io.write
     log = '/john/forest_'.. os.getComputerLabel().. '.log'
 
     function mcstamp()
         return os.day().. 'T'.. os.time()
     end
 
-    function print( s )
+    function templog( s )
         local fh = fs.open( log, 'a' )
         fh.write( mcstamp().. ': '.. s.. '\n' )
         fh.close()
-        oprint( s )
+        print( s )
     end
 
     function xxiowrite( s )
@@ -206,7 +204,7 @@ end
 
 function emptyInventory( t, inv, places )
     if not places.harvest or not gostate( t, inv, places.harvest ) then
-        print( 'Failed to empty inventory - could not get to harvest chest' )
+        templog( 'Failed to empty inventory - could not get to harvest chest' )
         return false
     end
 
@@ -236,19 +234,19 @@ function refuel( t, inv, places )
     end
 
     if cfg.safeFuelLevel < t( 'getFuelLevel' ) then
-        print( 'No need to refuel' )
+        templog( 'No need to refuel' )
         return true
     end
 
     if not places.refuel or not gostate( t, inv, places.refuel ) then
         -- do NOT refuel.  Didn't find my way to a chest.
-        print( 'Failed to refuel - could not find refuel chest' )
+        templog( 'Failed to refuel - could not find refuel chest' )
         return false
     end
 
     local slot = selectEmpty( t )
     if not slot then
-        print( 'Failed to refuel - could not find an empty slot' )
+        templog( 'Failed to refuel - could not find an empty slot' )
         return false
     end
 
@@ -257,26 +255,26 @@ function refuel( t, inv, places )
         slot = selectEmpty( t )
         if not slot then
             if not bottleReturn( t, inv, places, trash ) then
-                print( 'Failed to refuel - could not dispose of empties' )
+                templog( 'Failed to refuel - could not dispose of empties' )
                 return false
             end
             trash = {}
             slot = selectEmpty( t )
 
             if not gostate( t, inv, places.refuel ) then
-                print( 'Failed to refuel - could not get back to fuel chest after bottle return' )
+                templog( 'Failed to refuel - could not get back to fuel chest after bottle return' )
                 return false
             end
         end
 
         if not t( 'suck' ) then
-            print( 'Failed to refuel - No more fuel in the fuel chest' )
+            templog( 'Failed to refuel - No more fuel in the fuel chest' )
             return false
         end
 
         if not t( 'refuel' ) then
             table.insert( trash, slot )
-            print( 'Refueling - who put this shit in the fuel chest?  It is not delicious.' )
+            templog( 'Refueling - who put this shit in the fuel chest?  It is not delicious.' )
         else
             if trash[1] then
                 t( 'transferTo', trash[1], 1 )  -- try combining the empty fuel cans
@@ -311,7 +309,7 @@ function bottleReturn( t, inv, places, trash )
     return true
 end
 
-function chopTree( t )
+function chopTree( t, inv )
     if not findMatch( t, 16, 16 ) then
         -- not sure this is a tree
         return false
@@ -320,7 +318,7 @@ function chopTree( t )
     t( 'dig' ) -- now the selected block is the tree's logs
     t( 'forward' )
 
-    followChop( t )
+    followChop( t, inv )
 
     t( 'back' )
 
@@ -328,21 +326,67 @@ function chopTree( t )
 end
 
 --follow blocks matching the currently selected one
-function followChop( t )
+function followChop( t, inv )
 
-    if t( 'compareUp' ) then
+    local h = 0
+    local leaf = 5
+    local sapling = 1
+
+    while t( 'compareUp' ) do
         t( 'digUp' )
         t( 'up' )
-        followChop( t )
-        t( 'down' )
+        h = h + 1
     end
 
-    if t( 'compareDown' ) then
-        t( 'digDown' )
-        t( 'down' )
-        followChop( t )
-        t( 'up' )
+    for i = leaf, 16 do
+        if t( 'getItemCount', i ) > 0 then
+            sapling = i
+            break
+        end
     end
+
+    local function digmaybe( d )
+        if t( 'compare'.. d ) then t( 'dig'.. d ) return 1 end
+        return 0
+    end
+
+    local function lower()
+        if h > 0 then t( 'down' ) h = h - 1 end
+        if h > 0 then t( 'down' ) h = h - 1 end
+        if h > 0 then t( 'down' ) h = h - 1 return true end
+        return false
+    end
+
+    if h > 0 then t( 'down' ) h = h - 1 end
+
+    t( 'select', leaf )
+
+    local abort = false
+    while h > 0 do
+        local dug, tries = 0, 0
+
+        if not abort then
+            local st = t( 'getState' )
+            spiralDo( t, 2, function()
+                dug = dug + digmaybe( '' )
+                dug = dug + digmaybe( 'Up' )
+                dug = dug + digmaybe( 'Down' )
+                tries = tries + 3
+
+                if dug / tries < .2 then
+                    --don't waste time digging empty space
+                    abort = true
+                    return false
+                end
+            end)
+            gostate( t, inv, st )
+        end
+        
+        lower()
+    end
+
+    --make sure the saplings are in slot 1
+    combineAll( t, 1 )
 
     --[[ at least for rubber, this isn't necessary.  and it wouldn't really work anyway
     --it's supposed to find branches, but it would not find diagonal ones.
@@ -425,7 +469,7 @@ function plantTree( t )
     if selectSaplingToUse( t ) then
         return t( 'place' )
     end
-    print( 'Out of saplings' )
+    templog( 'Out of saplings' )
     return false
 end
 
@@ -523,7 +567,7 @@ function getToTree( t, inv, tree )
 end
 
 function DT(tree)
-    print( 'Tree '.. tree.state.. ': <'.. tree.v[1].. ','.. tree.v[2].. '>' )
+    templog( 'Tree '.. tree.state.. ': <'.. tree.v[1].. ','.. tree.v[2].. '>' )
 end
 
 local Hackable = {
@@ -654,17 +698,18 @@ function TendTreeFarm( t, width, height )
         return nil
     end
 
+    local lastTree = nil
     local cfg = t( 'getConfig' )
     while true do
 
         if t( 'getFuelLevel' ) < cfg.emergencyFuelLevel or countEmptySlots( t ) < cfg.safeEmptySlots then
             if not emptyInventory( t, inv, places ) then
-                print( 'No need to waste fuel.  Stopping.' )
+                templog( 'No need to waste fuel.  Stopping.' )
                 gostate( t, inv, startState )
                 return
             end
             if not refuel( t, inv, places ) then
-                print( 'Ow ow ow ow ow!' )
+                templog( 'Ow ow ow ow ow!' )
                 gostate( t, inv, startState )
                 return
             end
@@ -678,10 +723,11 @@ function TendTreeFarm( t, width, height )
 
         if ActionQueue.topKey() < os.clock() then
             -- the tree in the action queue is ready to take action on.
-            --print( 'tree in action queue is ready to do a thing' )
+            --templog( 'tree in action queue is ready to do a thing' )
             getToTree( t, inv, tree )
-            processTree( t, tree )
-            --print( 'actionqueue update'.. tree.v[1].. 'x'.. tree.v[2].. ':'..TimeToAction( tree) )
+            processTree( t, inv, tree )
+            lastTree = tree
+            --templog( 'actionqueue update'.. tree.v[1].. 'x'.. tree.v[2].. ':'..TimeToAction( tree) )
             ActionQueue.update( tree, TimeToAction( tree ) )
             --Q.update( tree, tree )
         else
@@ -689,12 +735,13 @@ function TendTreeFarm( t, width, height )
             -- find tree closest to 'tree'.  Process it.
             -- Maybe.  Or maybe just modify the old algorithm to circle back
             -- when a time has elapsed.
-            tree = closestTree( tree )
+            tree = closestTree( lastTree or tree )
             if tree then
                 io.write( 'processing closest tree: ' )
                 DT( tree )
                 getToTree( t, inv, tree )
-                processTree( t, tree )
+                processTree( t, inv, tree )
+                lastTree = tree
                 ActionQueue.update( tree, TimeToAction( tree ) )
                 --Q.update( tree, tree )
             else
@@ -788,13 +835,13 @@ function updateTreeState( tree, state )
     tree.updated = os.clock()
 end
 
-function processTree( t, tree )
+function processTree( t, inv, tree )
     if tree.state == TreeState.chopped then
-        print( 'Process chopped' )
+        templog( 'Process chopped' )
         local age = os.clock() - tree.updated
         if facingTree( t ) then
             updateTreeState( tree, TreeState.tree )
-            processTree( t, tree )
+            processTree( t, inv, tree )
         elseif facingSapling( t ) then
             --wish there was a nicer way to do this...
             --I want everything to act as if it was set to 
@@ -805,50 +852,50 @@ function processTree( t, tree )
         else
             -- how?
             updateTreeState( tree, TreeState.unknown )
-            processTree( t, tree )
+            processTree( t, inv, tree )
         end
         --don't bother looking if its been a while.
         if age < 30 * 60 then
             findSaplings( t )
         end
     elseif tree.state == TreeState.tree then
-        print( 'Process tree' )
-        chopTree( t )
+        templog( 'Process tree' )
+        chopTree( t, inv )
         plantTree( t )
-        updateTreeState( tree, TreeState.chopped )
+        updateTreeState( tree, TreeState.sapling )  --changed - chop grinds the tree manually.
     elseif tree.state == TreeState.empty then
-        print( 'Process empty' )
+        templog( 'Process empty' )
         if plantTree( t ) then
             updateTreeState( tree, TreeState.sapling )
         else
             return false -- couldn't plant.  who knows what to do.
         end
     elseif tree.state == TreeState.sapling then
-        print( 'Process sapling' )
+        templog( 'Process sapling' )
         if facingSapling( t ) then
             -- give it more time
             updateTreeState( tree, TreeState.sapling )
         else
             updateTreeState( tree, TreeState.tree )
-            processTree( t, tree )
+            processTree( t, inv, tree )
         end
     elseif tree.state == TreeState.unknown then
-        print( 'Process Unknown.  Checking...' )
+        templog( 'Process Unknown.  Checking...' )
         if facingSapling( t ) then
-            print( 'itsa sapling!' )
+            templog( 'itsa sapling!' )
             updateTreeState( tree, TreeState.sapling )
         elseif facingTree( t ) then
-            print( 'hey a tree' )
+            templog( 'hey a tree' )
             updateTreeState( tree, TreeState.tree )
         elseif facingEmpty( t ) then
-            print( 'Nothing :(' )
+            templog( 'Nothing :(' )
             updateTreeState( tree, TreeState.empty )
         else
             return false    --I don't know what to do
         end
 
-        print( 'Now try processing again' )
-        return processTree( t, tree )
+        templog( 'Now try processing again' )
+        return processTree( t, inv, tree )
     end
 
     return true
