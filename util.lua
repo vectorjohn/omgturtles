@@ -321,5 +321,28 @@ function combineAll( t, slot )
     return combineCount
 end
 
+
+function faceDirection( t, dir )
+    local cd = t( 'getState' ).dir
+
+    local max, min = math.max( dir, cd ), math.min( dir, cd )
+
+    print( 'max and min: '.. max.. ' '.. min )
+    -- There has to be a clever way to do this, but I'm not coming up with it.
+    if min == max then return end
+
+    if max - min == 2 then
+        t( 'turnLeft' )
+        t( 'turnLeft' )
+        return
+    end
+
+    if dir == 3 and cd == 0 then t( 'turnLeft' ) return end
+    if dir == 0 and cd == 3 then t( 'turnRight' ) return end
+
+    if dir < cd then t( 'turnLeft' ) return end
+    t( 'turnRight' )
+end
+
 function Logger( name )
 end
