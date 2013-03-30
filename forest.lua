@@ -96,11 +96,7 @@ function hackToState( t, inv, to )
         return false
     end
 
-    local from = t( 'getState' )
-    while from.dir ~= to.dir do
-        t( 'turnLeft' )
-        from = t( 'getState' )
-    end
+    faceDirection( t, to.dir )
 
     return true
 end
@@ -110,11 +106,7 @@ function hackDriveToState( t, inv, to )
         return false
     end
 
-    local from = t( 'getState' )
-    while from.dir ~= to.dir do
-        t( 'turnLeft' )
-        from = t( 'getState' )
-    end
+    faceDirection( t, to.dir )
 
     return true
 end
