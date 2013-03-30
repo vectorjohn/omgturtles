@@ -288,6 +288,38 @@ function drive( t, dist )
 	return true
 end
 
-function rect( t, width, height )
 
+--TODO - this could automatically put all of the items in slot next to each other.
+--or other neat stuff.
+--TODO: looks like there is compareTo and getItemSpace, which could make this better
+--transfers all possible items to slot
+--if slot is not full, and a partial stack is transferred into it, 
+--it will start combining into that slot.
+function combineAll( t, slot )
+    local combineCount = 0
+    local skipslot = {
+        [slot] = true
+    }
+
+    for i = 1, 16 do
+
+        local trycount = t( 'getItemCount', i )
+        
+        if not skipslot[ i ] and trycount > 0 then
+            t( 'select', i )
+            if t( 'transferTo', slot, trycount ) then
+                local newcount = t( 'getItemCount', i )
+                combineCount = combineCount + ( trycount - newcount )
+                if newcount > 0 then
+                    slot = i
+                    skipslot[ slot ] = true
+                end
+            end
+        end
+    end
+
+    return combineCount
+end
+
+function Logger( name )
 end
