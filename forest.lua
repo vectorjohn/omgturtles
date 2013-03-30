@@ -365,7 +365,9 @@ function findSaplings( t )
     t( 'select', 1 )
     drive( t, 1 )
     t( 'suckDown' )
-    spiralDo( t, 3, function()
+
+    --the random is because I can't decide how big to do this, so sometimes do 3
+    spiralDo( t, 2 +  math.floor(math.random() * 1.2), function()
         while t( 'suckDown' ) do end
     end)
     t( 'down' )
@@ -502,7 +504,7 @@ end
 
 function TimeToAction( tree )
     if tree.state == TreeState.chopped then
-        return tree.updated + 1.4 * 60
+        return tree.updated + 1.1 * 60
     end
 
     return 1/0
