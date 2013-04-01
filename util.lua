@@ -327,7 +327,6 @@ function faceDirection( t, dir )
 
     local max, min = math.max( dir, cd ), math.min( dir, cd )
 
-    print( 'max and min: '.. max.. ' '.. min )
     -- There has to be a clever way to do this, but I'm not coming up with it.
     if min == max then return end
 
@@ -342,6 +341,19 @@ function faceDirection( t, dir )
 
     if dir < cd then t( 'turnLeft' ) return end
     t( 'turnRight' )
+end
+
+function stateToVert( state )
+    return {state.x, state.y, state.z, state.dir}
+end
+
+function vertToState( v )
+    return {
+        x = v[1],
+        y = v[2],
+        z = v[3],
+        dir = v[4],
+    }
 end
 
 function Logger( name )

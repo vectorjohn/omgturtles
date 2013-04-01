@@ -7,9 +7,11 @@ dsltester.lua
 dstarlite.lua
 coord_move.lua
 PQueue.lua
+shapes.lua
 progs/
 progs/libtest.lua
 progs/carpet.lua
 progs/mine
 progs/forest
 progs/dsg
+progs/shape

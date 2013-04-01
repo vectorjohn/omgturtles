@@ -1,3 +1,27 @@
+function generic_goto( t, map, move_fn, xf, yf, zf, x, y, z )
+    DStarLite( {xf, yf, zf, 0}, {x, y, z, 0}, map, function( v, cost, i )
+        return move_fn( t, v, cost, i )
+    end)
+
+    return true
+end
+
+function gocoord( t, v, opts )
+    opts = opts or {}
+    local state = t( 'getState' )
+    local xf, yf, zf = state.x, state.y, state.z
+    local move_fn = opts.move_fn or CoordMove
+
+    return generic_goto( t, nil, move_fn, xf, yf, zf, v[1], v[2], v[3] )
+end
+
+function gostate( t, to, opts )
+    local ret = gocoord( t, stateToVert( to ), opts )
+
+    faceDirection( t, to.dir )
+
+    return ret
+end
 
 function _faceDirection( t, d, curDir )
     -- frame shift so that turtle is facing 0 (north).  Delta is the turn direction and count

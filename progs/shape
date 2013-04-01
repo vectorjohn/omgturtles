@@ -1,0 +1,88 @@
+function cc_include( f )
+	if require then
+        package.path = '../?.lua;'..package.path
+		require( f )
+	else
+		dofile( '/john/'..f..'.lua' )
+	end
+end
+
+cc_include( 'util' )
+cc_include( 'dstarlite' )
+cc_include( 'coord_move' )
+cc_include( 'shapes' )
+-- cc_include( 'NodeMap' )
+cc_include( 'PQueue' )
+
+t = trackable( turtle )
+
+local args = {...}
+
+function refilldirt( t )
+    local refilled = false
+    local i = 2
+
+    while t( 'getItemCount', 1 ) < 64 and i < 17 do
+        t( 'select', i )
+        if t( 'compareTo', 1 ) then
+            t( 'transferTo', 1 )
+        end
+
+        i = i + 1
+    end
+
+    return t( 'getItemCount', 1 ) > 1
+end
+
+function persistentMove( t )
+    for i=1, 15 do
+        if t( 'forward' ) then return true end
+        os.sleep( 2 )
+    end
+    return false
+end
+
+shape.rect( t, {
+    v2 = { tonumber( args[1] or 3 ), tonumber( args[2] or 3 ), 0, 0 },
+    xbefore = function()
+        t( 'digUp' )
+        t( 'dig' )
+        t( 'digDown' )
+    end,
+    filled = true,
+    move = persistentMove,
+    after = function()
+        if t( 'getItemCount', 1 ) == 1 then
+            if not refilldirt( t ) then
+                print( 'Ran out of dirt' )
+                return false
+            end
+        end
+        t( 'select', 1 )
+        t( 'placeDown' )
+    end
+})
+
+--[[
+gocoord( t, {-1, -1, 0, 0} )
+faceDirection( t, 0 )
+
+shape.rect( t, {
+    v2 = { tonumber( args[1] or 3 ) + 1, tonumber( args[2] or 3 ) + 1, 0, 0 },
+    after = function()
+        t( 'placeUp' )
+    end
+})
+--]]
+
+--[[
+if table.getn( args ) ~= 2 then
+    print( 'Usage: forest width height' )
+    return
+end
+
+
+--treefarm( t, tonumber( args[1] ), tonumber( args[2] ) )
+TendTreeFarm( t, tonumber( args[1] ), tonumber( args[2] ) )
+
+--]]

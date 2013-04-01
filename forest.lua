@@ -1,39 +1,30 @@
 
-logging = true
+logging = false
 
 if ( os.getComputerLabel() or '' ) == '' then
-    os.setComputerLabel( os.getComputerID() )
+    os.setComputerLabel( os.getComputerID().. '' )
 end
 
-if logging then
-    log = '/john/forest_'.. os.getComputerLabel().. '.log'
+log = '/john/forest_'.. os.getComputerLabel().. '.log'
 
-    function mcstamp()
-        return os.day().. 'T'.. os.time()
-    end
+function mcstamp()
+    return os.day().. 'T'.. os.time()
+end
 
-    function templog( s )
+function templog( s )
+    if logging then
         local fh = fs.open( log, 'a' )
         fh.write( mcstamp().. ': '.. s.. '\n' )
         fh.close()
-        print( s )
     end
-
-    function xxiowrite( s )
-        local fh = fs.open( log, 'a' )
-        fs.write( mcstamp().. ': '.. s.. '\n' )
-        fs.close()
-        owrite( s )
-    end
+    print( s )
 end
 
-
-function _generic_goto( t, map, move_fn, xf, yf, zf, x, y, z )
-    DStarLite( {xf, yf, zf, 0}, {x, y, z, 0}, map, function( v, cost, i )
-        return move_fn( t, v, cost, i )
-    end)
-
-    return true
+function xxiowrite( s )
+    local fh = fs.open( log, 'a' )
+    fs.write( mcstamp().. ': '.. s.. '\n' )
+    fs.close()
+    owrite( s )
 end
 
 function _gotocoord( t, map, xf,yf,zf, x, y, z )
@@ -44,12 +35,12 @@ function _gotocoord( t, map, xf,yf,zf, x, y, z )
         xf, yf, zf = state.x, state.y, state.z
     end
 
-    return _generic_goto( t, map, CoordMove, xf, yf, zf, x, y, z )
+    return generic_goto( t, map, CoordMove, xf, yf, zf, x, y, z )
 end
 
 function driveToCoord( t, x, y )
     local state = t( 'getState' )
-    return _generic_goto( t, nil, DriveTo, state.x, state.y, 0, x, y, 0 )
+    return generic_goto( t, nil, DriveTo, state.x, state.y, 0, x, y, 0 )
 end
 
 function gotocoord( t, xf, yf, zf, x, y, z )
@@ -82,12 +73,12 @@ end
 function hackto( t, inv, x, y, z )
     local state = t( 'getState' )
     local xf, yf, zf = state.x, state.y, state.z
-    return _generic_goto( t, nil, hackMoveWrap( CoordMove, inv ), xf, yf, zf, x, y, z )
+    return generic_goto( t, nil, hackMoveWrap( CoordMove, inv ), xf, yf, zf, x, y, z )
 end
 
 function hackDriveTo( t, inv, x, y )
     local state = t( 'getState' )
-    return _generic_goto( t, nil, hackMoveWrap( DriveTo, inv ), state.x, state.y, 0, x, y, 0 )
+    return generic_goto( t, nil, hackMoveWrap( DriveTo, inv ), state.x, state.y, 0, x, y, 0 )
 end
 
 function hackToState( t, inv, to )
@@ -111,11 +102,10 @@ function hackDriveToState( t, inv, to )
     return true
 end
 
-local gostate = hackToState
 local driveToState = hackDriveToState
 
 --[[
-function gostate( t, to )
+function hackToState( t, to )
     local from = t( 'getState' )
     if not gotocoord( t, from.x, from.y, from.z, to.x, to.y, to.z ) then
         return false
@@ -195,7 +185,7 @@ function findMatch( t, from, to )
 end
 
 function emptyInventory( t, inv, places )
-    if not places.harvest or not gostate( t, inv, places.harvest ) then
+    if not places.harvest or not hackToState( t, inv, places.harvest ) then
         templog( 'Failed to empty inventory - could not get to harvest chest' )
         return false
     end
@@ -230,7 +220,7 @@ function refuel( t, inv, places )
         return true
     end
 
-    if not places.refuel or not gostate( t, inv, places.refuel ) then
+    if not places.refuel or not hackToState( t, inv, places.refuel ) then
         -- do NOT refuel.  Didn't find my way to a chest.
         templog( 'Failed to refuel - could not find refuel chest' )
         return false
@@ -253,7 +243,7 @@ function refuel( t, inv, places )
             trash = {}
             slot = selectEmpty( t )
 
-            if not gostate( t, inv, places.refuel ) then
+            if not hackToState( t, inv, places.refuel ) then
                 templog( 'Failed to refuel - could not get back to fuel chest after bottle return' )
                 return false
             end
@@ -284,7 +274,7 @@ function refuel( t, inv, places )
 end
 
 function bottleReturn( t, inv, places, trash )
-    if not places.bottlereturn or not gostate( t, inv, places.bottlereturn ) then
+    if not places.bottlereturn or not hackToState( t, inv, places.bottlereturn ) then
         return false
     end
 
@@ -371,7 +361,7 @@ function followChop( t, inv )
                     return false
                 end
             end)
-            gostate( t, inv, st )
+            hackToState( t, inv, st )
         end
         
         lower()
@@ -388,7 +378,7 @@ function followChop( t, inv )
             t( 'dig' )
             t( 'forward' )
             followChop( t )
-            gostate( t, state )
+            hackToState( t, state )
         end
 
         t( 'turnLeft' )
@@ -407,7 +397,7 @@ function findSaplings( t )
         while t( 'suckDown' ) do end
     end)
     t( 'down' )
-    --gostate( t, state )   --experimentally leaving this out to save fuel.
+    --hackToState( t, state )   --experimentally leaving this out to save fuel.
 end
 
 function cctimestamp()
@@ -552,7 +542,7 @@ function getToTree( t, inv, tree )
         driveToState( t, inv, {x=tree.v[1], y=tree.v[2] - 1, z=nil, dir=0} )
         tree.v[3] = t( 'getState' ).z
     else
-        gostate( t, inv, {x=tree.v[1], y=tree.v[2] - 1, z=tree.v[3], dir=0} )
+        hackToState( t, inv, {x=tree.v[1], y=tree.v[2] - 1, z=tree.v[3], dir=0} )
     end
 
     return true
@@ -697,12 +687,12 @@ function TendTreeFarm( t, width, height )
         if t( 'getFuelLevel' ) < cfg.emergencyFuelLevel or countEmptySlots( t ) < cfg.safeEmptySlots then
             if not emptyInventory( t, inv, places ) then
                 templog( 'No need to waste fuel.  Stopping.' )
-                gostate( t, inv, startState )
+                hackToState( t, inv, startState )
                 return
             end
             if not refuel( t, inv, places ) then
                 templog( 'Ow ow ow ow ow!' )
-                gostate( t, inv, startState )
+                hackToState( t, inv, startState )
                 return
             end
         end
@@ -750,7 +740,7 @@ function TendTreeFarm( t, width, height )
         end
     end
 
-    --gostate( t, startState )
+    --hackToState( t, startState )
 end
 
 function makeRounds( t, width, height )
@@ -781,7 +771,7 @@ function makeRounds( t, width, height )
 
             --[[
             if not plantTree( t ) then
-                gostate( t, startState )
+                hackToState( t, startState )
                 return false
             end
             --]]
@@ -800,7 +790,7 @@ function makeRounds( t, width, height )
         plantTree( t )
         --[[
         if not plantTree( t ) then
-            gostate( t, startState )
+            hackToState( t, startState )
             return false
         end
         --]]
@@ -819,7 +809,7 @@ function makeRounds( t, width, height )
         end
     end
 
-    gostate( t, startState )
+    hackToState( t, startState )
 end
 
 function updateTreeState( tree, state )
