@@ -297,12 +297,13 @@ function chopTree( t, inv )
         return false
     end
 
+    local state = t( 'getState' )
     t( 'dig' ) -- now the selected block is the tree's logs
     t( 'forward' )
 
     followChop( t, inv )
 
-    t( 'back' )
+    hackToState( t, inv, state )
 
     return true
 end
@@ -363,8 +364,18 @@ function followChop( t, inv )
             end)
             hackToState( t, inv, st )
         end
-        
+
         lower()
+    end
+
+    -- this needs to be an option.  to incrase seedling production.
+    -- often by the time i'm done tearing up the leaves, I see
+    -- 1 or 2 saplings on the ground.  I need those saplings!
+    t( 'up' )
+    if h <= 1 then
+        spiralDo( t, 2, function()
+            while t( 'suckDown' ) do end
+        end)
     end
 
     --make sure the saplings are in slot 1
