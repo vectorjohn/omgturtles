@@ -356,5 +356,55 @@ function vertToState( v )
     }
 end
 
+function selectEmpty( t )
+    for i=1, 16 do
+        if t( 'getItemCount', i ) == 0 then
+            t( 'select', i )
+            return i
+        end
+    end
+    return false
+end
+
+function countEmptySlots( t )
+    local empty = 0
+    for i = 1, 16 do
+        if t( 'getItemCount', i ) == 0 then
+            empty = empty + 1
+        end
+    end
+    return empty
+end
+
+function findMatch( t, from, to )
+    for i = from, to do
+        t( 'select', i )
+        if t( 'compare' ) then
+            return true
+        end
+    end
+
+    return false
+end
+
+function selectFirst( t, item, inv )
+    local found = false
+
+    for i = 1, 16 do
+        if type( inv[i] ) == 'table' and inv[i][1] == item then
+            t( 'select', i )
+            return i
+        end
+    end
+
+    return found
+end
+
 function Logger( name )
+end
+
+function Inventory()
+    return {
+
+    }
 end

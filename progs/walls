@@ -1,0 +1,153 @@
+function cc_include( f )
+	if require then
+        package.path = '../?.lua;'..package.path
+		require( f )
+	else
+		dofile( '/john/'..f..'.lua' )
+	end
+end
+
+cc_include( 'util' )
+cc_include( 'dstarlite' )
+cc_include( 'coord_move' )
+cc_include( 'shapes' )
+-- cc_include( 'NodeMap' )
+cc_include( 'PQueue' )
+
+if ( os.getComputerLabel() or '' ) == '' then
+    os.setComputerLabel( os.getComputerID().. '' )
+end
+
+log = '/john/walls_'.. os.getComputerLabel().. '.log'
+local logging = true
+function templog( s )
+    if logging then
+        local fh = fs.open( log, 'a' )
+        fh.write( mcstamp().. ': '.. s.. '\n' )
+        fh.close()
+    end
+    print( s )
+end
+
+t = trackable( turtle )
+
+local args = {...}
+
+--[[
+-- W = wall
+-- T = turtle
+-- R = recycle
+-- B = blocks (main building block)
+-- G = glass
+-- L = lights
+-- F = fuel
+    WWWWWW
+
+
+    T
+F R B G L
+--]]
+local places = {
+    fuel = {x=-4, y=-3, z=0, dir=2},
+    mainbricks = {x=0, y=-3, z=0, dir=2},
+    recycling = {x=-2, y=-3, z=0, dir=2},
+    glass = {x=2, y=-3, z=0, dir=2},
+    lights = {x=4, y=-3, z=0, dir=2},
+    swcorner = {x=0, y=0, z=0, dir=0},
+}
+
+local inv = {
+    {'brick',1}, {'brick',1}, {'brick',1}, {'brick',1},
+    {'brick',1}, {'brick',1}, {'brick',1}, {'brick',1},
+    {'brick',1}, {'brick',1}, {'brick',1}, {'brick',1},
+    {'brick',1}, {'glass',1}, {'glass',1}, {'lights',1},
+}
+
+local cfg = {
+    fuelTopLevel = 5000,
+    refuelLevel = 1000,
+    emergencyFuelLevel = 500,
+}
+
+local errors = {
+    refuel_noslots = 'Could not refuel - no empty slots',
+    refuel_chestempty = 'Could not refuel, the fuel chest was empty',
+    refuel_notfuel = 'Who put this garbage in the fuel chest?',
+}
+
+local context = {
+    places = places,
+    inventory = inv,
+    config = cfg
+}
+
+function yielderror( ... )
+    templog( errors[ arg[1] ] or arg[1] or 'Error - something went wrong' )
+    coroutine.yield( false, unpack( arg ) )
+end
+
+local refuel = coroutine.create( function( t, ctx )
+    local cfg = ctx.config
+
+    while true do repeat
+        if t( 'getFuelLevel' ) < cfg.refuelLevel then
+            gostate( t, ctx.places.fuel )
+            local slot = selectEmpty( t )
+            local dropped = false
+            if not slot then
+                slot = selectFirst( t, 'brick', ctx.inventory )
+                if not slot then 
+                    yielderror( 'refuel_noslots' )
+                    break -- lua continue
+                end
+
+                chainMove( t, 'turnLeft', 'drop', 'turnRight' )
+
+                dropped = true
+            end
+
+            while t( 'getFuelLevel' ) < cfg.fuelTopLevel do
+                if not t( 'suck' ) then
+                    yielderror( 'refuel_chestempty' )
+                    break
+                end
+
+                if not t( 'refuel' ) then
+                    yielderror( 'refuel_notfuel' )
+                    break
+                end
+            end
+                
+            if dropped then
+                chainMove( t, 'turnLeft', 'suck', 'turnRight' )
+            end
+        end
+
+        coroutine.yield( true )
+
+    until true end
+end)
+
+local dothings = coroutine.create( function( t, ctx )
+
+    shape.rect( t, {
+        v2 = { tonumber( args[1] or 3 ), tonumber( args[2] or 3 ), 0, 0 },
+        xbefore = function()
+            t( 'digUp' )
+            t( 'dig' )
+            t( 'digDown' )
+        end,
+        filled = true,
+        move = persistentMove,
+        after = function()
+            if t( 'getItemCount', 1 ) == 1 then
+                if not refilldirt( t ) then
+                    print( 'Ran out of dirt' )
+                    return false
+                end
+            end
+            t( 'select', 1 )
+            t( 'placeDown' )
+        end
+    })
+end)
