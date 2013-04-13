@@ -140,7 +140,7 @@ function shape.rect( t, opts )
         dist = opts.v2[1] - opts.v1[1] - 2,
     }))
 
-    if opts.filled then
+    if ret and opts.filled then
         --t( 'turnRight' )
         if opts.onrect() == false then return false end
         local curstate = t( 'getState' )
