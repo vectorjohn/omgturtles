@@ -17,6 +17,81 @@ if not math.mod then
     end
 end
 
+function table.map( t, fn )
+    local nt = {}
+    for k, v in pairs( t ) do
+        nt[ k ] = fn( v )
+    end
+    return nt
+end
+
+function table.each( t, fn )
+    for k, v in pairs( t ) do
+        if fn( v, k ) == false then
+            return
+        end
+    end
+end
+
+function table.reduce( t, fn, init )
+    local result = init
+    table.each( t, function(v, k)
+        result = fn( result, v, k )
+    end)
+    return result
+end
+
+function table.filter( t, fn )
+    local nt = {}
+    table.each( t, function( v, k )
+        if fn( v, k ) then
+            nt[ k ] = v
+        end
+    end)
+    return nt
+end
+
+function table.first( t, fn )
+    local val, key = nil, nil
+    table.each( t, function( v, k )
+        if fn( v, k ) then
+            val, key = v, k
+            return false
+        end
+    end)
+
+    return val, key
+end
+
+function table.copy( t, deep )
+    local cp = {}
+    for k, v in pairs( t ) do
+        if deep and type( v ) == 'table' then
+            cp[ k ] = table.copy( v )
+        else
+            cp[ k ] = v
+        end
+    end
+    return cp
+end
+
+--sort without side effects.  deep copies the table
+function table.fsort( t, cmp )
+    t = table.copy( t, true )
+    table.sort( t, cmp )
+    return t
+end
+
+function dist( v1, v2 )
+    local dx, dy, dz = math.abs( v1[1] - v2[1] ), math.abs( v1[2] - v2[2] ), math.abs( v1[3] - v2[3] )
+    return math.sqrt( dx * dx + dy * dy + dz * dz )
+end
+
+function mandist( v1, v2 )
+    local dx, dy, dz = math.abs( v1[1] - v2[1] ), math.abs( v1[2] - v2[2] ), math.abs( v1[3] - v2[3] )
+    return dx + dy + dz
+end
+
 function spiralDo( t, r, each )
 
 	function step( curRad, dir, sidePos )
