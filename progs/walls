@@ -63,6 +63,12 @@ local inv = {
     {'brick',1}, {'glass',1}, {'glass',1}, {'lights',1},
 }
 
+local supplies = {
+    'mainbricks',
+    'glass',
+    'lights',
+}
+
 local cfg = {
     fuelTopLevel = 5000,
     refuelLevel = 1000,
@@ -77,20 +83,36 @@ local errors = {
 
 local context = {
     places = places,
+    supplies = supplies,
     inventory = inv,
     config = cfg
 }
 
 function yielderror( ... )
     templog( errors[ arg[1] ] or arg[1] or 'Error - something went wrong' )
-    coroutine.yield( false, unpack( arg ) )
+    coroutine.yield( refuelResults.error, unpack( arg ) )
 end
 
-local refuel = coroutine.create( function( t, ctx )
-    local cfg = ctx.config
+local refuelResults = {
+    error = false,
+    filled = 'filled',
+    stillfull = 'stillfull',
+}
+
+local refuel = coroutine.create( function( t, ctx, opts )
+    local cfg, action
 
     while true do repeat
+        t, ctx, opts = coroutine.yield( action )
+        cfg = ctx.config
+        action = refuelResults.stillfull
+
+        action = refuelResults.stillfull
         if t( 'getFuelLevel' ) < cfg.refuelLevel then
+            action = refuelResults.filled
+
+            local savestate = t( 'getState' )
+
             gostate( t, ctx.places.fuel )
             local slot = selectEmpty( t )
             local dropped = false
@@ -121,12 +143,42 @@ local refuel = coroutine.create( function( t, ctx )
             if dropped then
                 chainMove( t, 'turnLeft', 'suck', 'turnRight' )
             end
-        end
 
-        coroutine.yield( true )
+            if opts.comeback then
+                gostate( t, savestate )
+            end
+        end
 
     until true end
 end)
+coroutine.resume( refuel )
+
+local resupply = coroutine.create( function( t, ctx, opts )
+    local cfg, action
+
+    while true do repeat
+        t, ctx, opts = coroutine.yield( action )
+        local savestate = t( 'getState' )
+        local first = stateToVert( ctx.places.mainbricks )
+        local supplies = table.map( ctx.supplies, function( s )
+            return {name = s, v = stateToVert( ctx.places[ s ] )}
+        end)
+
+        supplies = table.fsort( supplies, function( a, b )
+            return distance( first, a.v ) - distance( first, b.v )
+        end)
+
+        table.each( supplies, function( sup )
+            gostate( t, vertToState( sup.v ) )
+            -- get shit
+        end)
+
+        if opts.comeback then
+            gostate( t, savestate )
+        end
+    until true end
+end)
+coroutine.resume( resupply )
 
 local dothings = coroutine.create( function( t, ctx )
 
@@ -140,6 +192,10 @@ local dothings = coroutine.create( function( t, ctx )
         filled = true,
         move = persistentMove,
         after = function()
+            if not coroutine.resume( refuel, t, ctx, {comeback = true} ) then
+                return false
+            end
+
             if t( 'getItemCount', 1 ) == 1 then
                 if not refilldirt( t ) then
                     print( 'Ran out of dirt' )
