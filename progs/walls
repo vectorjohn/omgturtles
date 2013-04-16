@@ -88,9 +88,71 @@ local context = {
     config = cfg
 }
 
+function getLayers( bottomLeft, topRight, height )
+
+    topRight = table.copy( topRight )
+
+    topRight[1] = topRight[1] - bottomLeft[1]
+    topRight[2] = topRight[2] - bottomLeft[2]
+    topRight[3] = topRight[3] - bottomLeft[3]
+
+    bottomLeft = {0, 0, 0, bottomLeft[4]}
+
+    local h = bottomLeft[3]
+    
+    return function()
+        if h >= bottomLeft[3] + height  then
+            return nil
+        end
+
+        local layer = {}
+        for x=bottomLeft[1], topRight[1] do
+            table.insert( layer, {
+                x,
+                bottomLeft[2],
+                bottomLeft[3] + h - 1,
+                0
+            })
+            table.insert( layer, {
+                x,
+                topRight[2],
+                bottomLeft[3] + h - 1,
+                2
+            })
+        end
+
+        for y=bottomLeft[2], topRight[2] do
+            table.insert( layer, {
+                bottomLeft[1],
+                y,
+                bottomLeft[3] + h - 1,
+                1
+            })
+            table.insert( layer, {
+                topRight[1],
+                y,
+                bottomLeft[3] + h - 1,
+                3
+            })
+        end
+
+        return layer
+    end
+end
+
+function blockmap( v )
+    return 'brick'
+end
+
 function yielderror( ... )
     templog( errors[ arg[1] ] or arg[1] or 'Error - something went wrong' )
     coroutine.yield( refuelResults.error, unpack( arg ) )
+end
+
+function cotask( co, t, ctx, opts )
+    return function()
+        return coroutine.resume( co, t, ctx, opts )
+    end
 end
 
 local refuelResults = {
@@ -164,13 +226,23 @@ local resupply = coroutine.create( function( t, ctx, opts )
             return {name = s, v = stateToVert( ctx.places[ s ] )}
         end)
 
+        --go to chests in order of start distance.  a micro optimization would be
+        --to re-sort the list after every chest in case the first one I go to
+        --is in the middle (the turtle will currently bounce back and forth)
+        --E.g. it might go middle, left, right, left, right, etc.  For now there
+        --are only a couple chests so no problem.
+        --Holy shit, travelling salesperson strikes again!
         supplies = table.fsort( supplies, function( a, b )
             return distance( first, a.v ) - distance( first, b.v )
         end)
 
         table.each( supplies, function( sup )
             gostate( t, vertToState( sup.v ) )
-            -- get shit
+            --assumes turtle has placeholders.  A nice thing would be to 
+            --have 2 or 3 slots reserved for junk found while building (dirt,
+            --cobble, wood, that stuff).  I could just put expected junk in
+            --slots.
+            while t( 'suck' ) do end
         end)
 
         if opts.comeback then
@@ -182,6 +254,33 @@ coroutine.resume( resupply )
 
 local dothings = coroutine.create( function( t, ctx )
 
+    local gohome = returner( t, gostate )
+    local start = stateToVert( t( 'getState' ) )
+
+    table.each( getLayers( v1, v2 ), function( layer )
+        layer = table.map( tsp( start, layer ), blockmap )
+        table.each( layer, function( v )
+
+            table.each( {
+                cotask( refuel, t, ctx ),
+                --cotask( resupply, t, ctx ),
+                --ifclose( t, places.bricks, 10, resupply )
+                returner( t, gocoord )
+            }, function( task )
+                if task() == false then
+                    gohome()
+                    resume = false
+                    return false
+                end
+            end)
+
+            gocoord( t, aboveState( vertToState( v ) ) )
+            -- select the appropriate brick.  If I'm out,
+            -- resupply.  Then place
+            t( 'placeDown' )
+        end)
+    end)
+
     shape.rect( t, {
         v2 = { tonumber( args[1] or 3 ), tonumber( args[2] or 3 ), 0, 0 },
         xbefore = function()
@@ -192,16 +291,22 @@ local dothings = coroutine.create( function( t, ctx )
         filled = true,
         move = persistentMove,
         after = function()
-            if not coroutine.resume( refuel, t, ctx, {comeback = true} ) then
-                return false
-            end
+            local resume = true
 
-            if t( 'getItemCount', 1 ) == 1 then
-                if not refilldirt( t ) then
-                    print( 'Ran out of dirt' )
+            table.each( {
+                cotask( refuel, t, ctx ),
+                --cotask( resupply, t, ctx ),
+                returner( t, gostate )
+            }, function( task )
+                if task() == false then
+                    gohome()
+                    resume = false
                     return false
                 end
-            end
+            end)
+
+            return resume
+
             t( 'select', 1 )
             t( 'placeDown' )
         end

@@ -18,15 +18,22 @@ if not math.mod then
 end
 
 function table.map( t, fn )
+    if type(t) ~= 'function' then
+        t = pairs(t)
+    end
     local nt = {}
-    for k, v in pairs( t ) do
+    for k, v in t do
         nt[ k ] = fn( v )
     end
     return nt
 end
 
 function table.each( t, fn )
-    for k, v in pairs( t ) do
+    if type(t) ~= 'function' then
+        t = pairs(t)
+    end
+
+    for k, v in t do
         if fn( v, k ) == false then
             return
         end
@@ -90,6 +97,40 @@ end
 function mandist( v1, v2 )
     local dx, dy, dz = math.abs( v1[1] - v2[1] ), math.abs( v1[2] - v2[2] ), math.abs( v1[3] - v2[3] )
     return dx + dy + dz
+end
+
+-- solve the travelling salesperson problem in
+-- O(n^2) time like a boss.
+-- JK, this uses nearest neighbor.  Fast and easy.
+function tsp( start, verts )
+    verts = table.copy( verts )
+
+    return function()
+        if not verts then
+            return verts
+        end
+
+        verts = table.map( verts, function(v)
+            return {mandist( start, v ), v}
+        end)
+
+        local best = table.remove( verts )
+        best = {dist = best[1], v = best[2]}
+
+        table.reduce( verts, function( best, node )
+            if node[1] < best.dist then
+                if not best.rest then best.rest = {} end
+
+                table.insert( best.rest, best.v )
+                best.dist = node[1]
+                best.v = node[2]
+            end
+            return best
+        end, best)
+
+        verts = best.rest
+        return best.v
+    end
 end
 
 function spiralDo( t, r, each )
@@ -431,6 +472,12 @@ function vertToState( v )
     }
 end
 
+function aboveState( st )
+    st = table.copy( st )
+    st.z = st.z + 1
+    return st
+end
+
 function selectEmpty( t )
     for i=1, 16 do
         if t( 'getItemCount', i ) == 0 then
@@ -473,6 +520,13 @@ function selectFirst( t, item, inv )
     end
 
     return found
+end
+
+function returner( t, mover )
+    local state = t( 'getState' )
+    return function()
+        mover( t, state )
+    end
 end
 
 function Logger( name )
