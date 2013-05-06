@@ -16,8 +16,6 @@ cc_include( 'PQueue' )
 
 t = trackable( turtle )
 
-local args = {...}
-
 function refilldirt( t )
     local refilled = false
     local i = 2
@@ -37,52 +35,115 @@ end
 function persistentMove( t )
     for i=1, 15 do
         if t( 'forward' ) then return true end
-        os.sleep( 2 )
+        if not t( 'dig' ) then
+            os.sleep( 2 )
+        end
     end
     return false
 end
 
-shape.rect( t, {
-    v2 = { tonumber( args[1] or 3 ), tonumber( args[2] or 3 ), 0, 0 },
-    xbefore = function()
-        t( 'digUp' )
-        t( 'dig' )
-        t( 'digDown' )
-    end,
-    filled = true,
-    move = persistentMove,
-    after = function()
-        if t( 'getItemCount', 1 ) == 1 then
-            if not refilldirt( t ) then
-                print( 'Ran out of dirt' )
-                return false
+local things = {
+    slab = function(t, width, depth )
+        shape.rect( t, {
+            v2 = { tonumber( width or 3 ), tonumber( depth or 3 ), 0, 0 },
+            xbefore = function()
+                t( 'digUp' )
+                t( 'dig' )
+                t( 'digDown' )
+            end,
+            filled = true,
+            move = persistentMove,
+            after = function()
+                if t( 'getItemCount', 1 ) == 1 then
+                    if not refilldirt( t ) then
+                        print( 'Ran out of dirt' )
+                        return false
+                    end
+                end
+                t( 'select', 1 )
+                if not t( 'placeDown' ) then
+                    t( 'digUp' )
+                    if t( 'digDown' ) then
+                        if not t( 'placeDown' ) then
+                            return false
+                        end
+                    else
+                        -- what?  don't know
+                        return false
+                    end
+                end
             end
+        })
+    end,
+
+    rect = function( t, width, depth, height )
+        width = tonumber( width or nil )
+        depth = tonumber( depth or nil )
+        height = tonumber( height or nil )
+
+        if not height then height = 1 end
+        if not width or not depth then
+            print( 'rect requires a width and depth.  optionally a height also.' )
+            return false
         end
-        t( 'select', 1 )
-        t( 'placeDown' )
+
+        for i=1,height do
+            --local state = t( 'getState' )
+            shape.rect( t, {
+                v2 = { tonumber( width ), tonumber( depth ), 0, 0 },
+                xbefore = function()
+                    t( 'digUp' )
+                    t( 'dig' )
+                    t( 'digDown' )
+                end,
+                move = persistentMove,
+                after = function()
+                    if t( 'getItemCount', 1 ) == 1 then
+                        if not refilldirt( t ) then
+                            print( 'Ran out of dirt' )
+                            return false
+                        end
+                    end
+                    t( 'select', 1 )
+                    if not t( 'placeDown' ) then
+                        t( 'digUp' )
+                        if t( 'digDown' ) then
+                            if not t( 'placeDown' ) then
+                                return false
+                            end
+                        else
+                            -- what?  don't know
+                            return false
+                        end
+                    end
+                end
+            })
+
+            t( 'forward' )
+            t( 'up' )
+            t( 'turnRight' )
+            t( 'back' )
+            --state.z = state.z + 1
+            --gostate( t, state )
+        end
+    end,
+
+    wall = function( t, width, height )
     end
-})
+}
 
---[[
-gocoord( t, {-1, -1, 0, 0} )
-faceDirection( t, 0 )
+local args = {...}
 
-shape.rect( t, {
-    v2 = { tonumber( args[1] or 3 ) + 1, tonumber( args[2] or 3 ) + 1, 0, 0 },
-    after = function()
-        t( 'placeUp' )
-    end
-})
---]]
-
---[[
-if table.getn( args ) ~= 2 then
-    print( 'Usage: forest width height' )
+if table.getn( args ) < 1 then
+    print( 'Usage: shape [ args ]' )
     return
 end
 
+if things[ args[1] ] then
+    local fn = args[1]
+    args[1] = t
+    things[ fn ]( unpack( args ) )
+else
+    print( 'Unknown shape.' )
+end
 
---treefarm( t, tonumber( args[1] ), tonumber( args[2] ) )
-TendTreeFarm( t, tonumber( args[1] ), tonumber( args[2] ) )
-
---]]
