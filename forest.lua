@@ -380,10 +380,6 @@ function findSaplings( t )
     --hackToState( t, state )   --experimentally leaving this out to save fuel.
 end
 
-function cctimestamp()
-    return os.day() * 24 + os.time()
-end
-
 function treefarm( t, width, height )
     gotocoord = function( t, xf, yf, zf, x, y, z )
         _gotocoord( t, nil, xf, yf, zf, x, y, z )

@@ -6,7 +6,8 @@ function cc_include( f )
     if require then
 		require( f )
 	else
-        dofile( '/'.. shell.dir().. '/'.. f.. '.lua' )
+        --dofile( '/'.. shell.dir().. '/'.. f.. '.lua' )
+        dofile( '/john/'.. f.. '.lua' )
 	end
 end
 
@@ -423,7 +424,7 @@ function combineAll( t, slot )
         
         if not skipslot[ i ] and trycount > 0 then
             t( 'select', i )
-            if t( 'transferTo', slot, trycount ) then
+            if t( 'compareTo', slot ) and t( 'transferTo', slot, trycount ) then
                 local newcount = t( 'getItemCount', i )
                 combineCount = combineCount + ( trycount - newcount )
                 if newcount > 0 then
@@ -520,6 +521,10 @@ function selectFirst( t, item, inv )
     end
 
     return found
+end
+
+function cctimestamp()
+    return os.day() * 24 + os.time()
 end
 
 function returner( t, mover )

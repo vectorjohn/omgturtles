@@ -15,3 +15,4 @@ progs/mine
 progs/forest
 progs/dsg
 progs/shape
+progs/recycler
