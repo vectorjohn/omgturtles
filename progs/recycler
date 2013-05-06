@@ -1,0 +1,131 @@
+function cc_include( f )
+	if require then
+        package.path = '../?.lua;'..package.path
+		require( f )
+	else
+		dofile( '/john/'..f..'.lua' )
+	end
+end
+
+cc_include( 'util' )
+--cc_include( 'dstarlite' )
+--cc_include( 'coord_move' )
+--cc_include( 'shapes' )
+-- cc_include( 'NodeMap' )
+cc_include( 'PQueue' )
+
+
+local t = trackable( turtle )
+local bpipe = peripheral.wrap('top')
+
+bpipe.setTurtleConnect(true)
+
+local waitInc = 1/20    --a tick
+local minWaitTime = 0
+local waitTime = minWaitTime
+local maxWait = 3
+
+print( 'Reticulating splines...' )
+print( 'Recycling forever...' )
+
+function SMATimed( len )
+
+    local avg, last = 0, cctimestamp()
+
+    return function( n )
+        local now = cctimestamp()
+        local time = now - last
+
+        avg = (( avg * ( len - time ) ) + n) / len
+        last = now
+
+        return avg
+    end
+end
+
+print('')
+print('')
+print('')
+print('')
+local cursors = {}
+cursors.avgCursor = {term.getCursorPos()}
+cursors.longAvgCursor = {cursors.avgCursor[1], cursors.avgCursor[2]-1}
+cursors.totalCursor = {cursors.avgCursor[1], cursors.avgCursor[2]-2}
+cursors.elapsedCursor = {cursors.avgCursor[1], cursors.avgCursor[2]-3}
+
+function printStat( curs, msg, num, units )
+    units = units or ''
+    term.setCursorPos( curs[1], curs[2] )
+    term.clearLine()
+    term.write( msg.. ': '.. num.. ' '.. units )
+end
+
+function printLongAvg( avg )
+    printStat( cursors.longAvgCursor, 'Long Recycle Rate', math.floor( avg ), 'item/mch' )
+end
+
+function printAvg( avg )
+    printStat( cursors.avgCursor, 'Recycle Rate', math.floor( avg ), 'item/15mcm' )
+end
+
+function printTotal( tot )
+    printStat( cursors.totalCursor, 'Items Recycled', tot )
+end
+
+function printElapsed( tot )
+    printStat( cursors.elapsedCursor, 'Elapsed MC Minutes', math.floor( tot * 60 ) )
+end
+
+
+local elapsed = 0
+local lastTime = cctimestamp()
+local total = 0
+
+addAverage = SMATimed( 1/4 )   -- 1/30 of a minecraft hour (15 mc minutes)
+
+while true do
+
+    local waited = false
+    local dropped = 0
+    local nextSlot = 1
+
+    for i=nextSlot, 16 do
+        local items = t( 'getItemCount', i )
+        if t( 'getItemCount', i ) > 0 then
+            t( 'select', i )
+            if t( 'dropDown' ) then
+                dropped = dropped + ( items - t( 'getItemCount', i ) )
+                if t( 'getItemCount', i ) > 0 then
+                    nextSlot = i
+                    waitTime = waitInc
+                    break
+                    -- waiting on the recycler.  use this time to save space
+                    --combineAll( t, i )
+                    --waited = true
+                end
+                waitTime = minWaitTime
+            end
+        end
+
+        nextSlot = 1
+    end
+
+    local now = cctimestamp()
+    elapsed = elapsed + now - lastTime
+    lastTime = now
+
+    total = total + dropped
+    printLongAvg( total / elapsed )
+    printAvg( addAverage( dropped ) )
+    printTotal( total )
+    printElapsed( elapsed )
+
+    if dropped == 0 then
+        waitTime = math.max( waitInc, math.min( waitTime * 2, maxWait ) )
+    end
+
+    if not waited and waitTime > 0 then
+
+        os.sleep( waitTime )
+    end
+end
