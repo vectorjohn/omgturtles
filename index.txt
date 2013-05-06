@@ -16,3 +16,4 @@ progs/forest
 progs/dsg
 progs/shape
 progs/recycler
+progs/feeder
