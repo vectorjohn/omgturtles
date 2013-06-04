@@ -298,7 +298,10 @@ function followChop( t, inv )
     end
 
     local function digmaybe( d )
-        if t( 'compare'.. d ) then t( 'dig'.. d ) return 1 end
+        --if t( 'compare'.. d ) then t( 'dig'.. d ) return 1 end
+        --FIXME: seems to be a CC bug where compare returns false on most leaves even the same type.
+        --only seems to work with rubber.
+        if t( 'dig'.. d ) then return 1 end
         return 0
     end
 

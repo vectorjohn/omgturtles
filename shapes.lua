@@ -70,6 +70,7 @@ function shape.straightline( t, opts )
         v1 = false,
         dir = false,
         dist = 0,
+        retrymove = nil,
         before = function() end,
         after = function() end,
         move = function() return t( 'forward' ) end,
@@ -82,7 +83,8 @@ function shape.straightline( t, opts )
         opts.dir = opts.v1[4]
     end
 
-    gocoord( t, opts.v1 )
+
+    retrymove( t, opts.v1, { retry = opts.retrymove } )
     faceDirection( t, opts.dir )
 
     --starting at 1 so that if they say go 1, I get one call of the move callbacks
@@ -114,7 +116,7 @@ function shape.rect( t, opts )
 
     if opts.v1[2] >= opts.v2[2] then
         if samex then return true end
-        opts.v1 = table.merge( {}, opts.v1, {[2] = opts.v2[2]} )
+        opts.v2 = table.merge( {}, opts.v1, {[2] = opts.v2[2]} )
     end
 
     local ret = true
@@ -127,21 +129,21 @@ function shape.rect( t, opts )
     ret = ret and shape.straightline( t, table.merge( {}, opts, {
         v1 = false,
         dir = 1,
-        dist = opts.v2[1] - opts.v1[1] - 1,
+        dist = opts.v2[1] - opts.v1[1],
     }))
     ret = ret and shape.straightline( t, table.merge( {}, opts, {
         v1 = false,
         dir = 2,
-        dist = opts.v2[2] - opts.v1[2] - 1,
+        dist = opts.v2[2] - opts.v1[2],
     }))
     ret = ret and shape.straightline( t, table.merge( {}, opts, {
         v1 = false,
         dir = 3,
-        dist = opts.v2[1] - opts.v1[1] - 2,
+        dist = opts.v2[1] - opts.v1[1],
     }))
 
     if ret and opts.filled then
-        --t( 'turnRight' )
+        t( 'turnRight' )
         if opts.onrect() == false then return false end
         local curstate = t( 'getState' )
 

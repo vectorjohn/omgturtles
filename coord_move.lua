@@ -15,6 +15,20 @@ function gocoord( t, v, opts )
     return generic_goto( t, nil, move_fn, xf, yf, zf, v[1], v[2], v[3] )
 end
 
+function retrymove( t, v, opts )
+    opts = opts or {}
+
+    opts.move_fn = function( ... )
+        if opts.retry then
+            table.insert( arg, opts.retry )
+            return RetryCoordMove( unpack( arg ) )
+        end
+        return CoordMove( unpack( arg ) )
+    end
+
+    return gocoord( t, v, opts )
+end
+
 function gostate( t, to, opts )
     local ret = gocoord( t, stateToVert( to ), opts )
 
@@ -65,14 +79,14 @@ function faceCoord( t, v )
     _faceDirection( t, dir, state.dir )
 end
 
-function CoordMove( t, v, cost, i )
+function CoordMoveInstruct( t, v, cost, i )
     local state = t( 'getState' )
     local dx, dy, dz = v[1], v[2], v[3]
     local cmd = 'forward'
 
     if dx == 0 and dy == 0 and dz == 0 then
         -- DStarLite sometimes says to move to the current location.  I may or may not change that.
-        return cost
+        return nil
     end
 
     if dx ~= 0 or dy ~= 0 then
@@ -85,10 +99,30 @@ function CoordMove( t, v, cost, i )
         end
     end
 
+    return cmd
+end
+
+function CoordMove( t, v, cost, i )
+    local cmd = CoordMoveInstruct( t, v, cost, i )
+    if cmd == nil then return cost end
     if not t( cmd ) then
         return 1 / 0
     end
+    return cost
+end
 
+function RetryCoordMove( t, v, cost, i, retry )
+    local cmd = CoordMoveInstruct( t, v, cost, i )
+    if cmd == nil then return cost end
+    if not t( cmd ) then
+        if not retry( t, cmd ) then
+            return 1 / 0
+        end
+        if not t( cmd ) then
+            return 1 / 0
+        end
+        return cost
+    end
     return cost
 end
 

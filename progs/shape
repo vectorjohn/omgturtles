@@ -32,8 +32,21 @@ function refilldirt( t )
     return t( 'getItemCount', 1 ) > 1
 end
 
+function retryByDigging( t, cmd )
+    local stuff = {
+        up = 'digUp',
+        forward = 'dig',
+        down = 'digDown',
+    }
+
+    if stuff[ cmd ] then
+        return t( stuff[ cmd ] )
+    end
+    return false
+end
+
 function persistentMove( t )
-    for i=1, 15 do
+    for i=1, 25 do
         if t( 'forward' ) then return true end
         if not t( 'dig' ) then
             os.sleep( 2 )
@@ -44,16 +57,19 @@ end
 
 local things = {
     slab = function(t, width, depth )
+
+        if not width or not depth then
+            print( 'slab requires a width and depth.' )
+            return false
+        end
+
+        local state = t( 'getState' )
         shape.rect( t, {
-            v2 = { tonumber( width or 3 ), tonumber( depth or 3 ), 0, 0 },
-            xbefore = function()
-                t( 'digUp' )
-                t( 'dig' )
-                t( 'digDown' )
-            end,
+            v2 = { tonumber( width ) + state.x - 1, tonumber( depth ) + state.x - 1, 0, 0 },
             filled = true,
             move = persistentMove,
-            after = function()
+            retrymove = retryByDigging,
+            before = function()
                 if t( 'getItemCount', 1 ) == 1 then
                     if not refilldirt( t ) then
                         print( 'Ran out of dirt' )
@@ -62,13 +78,7 @@ local things = {
                 end
                 t( 'select', 1 )
                 if not t( 'placeDown' ) then
-                    t( 'digUp' )
-                    if t( 'digDown' ) then
-                        if not t( 'placeDown' ) then
-                            return false
-                        end
-                    else
-                        -- what?  don't know
+                    if not t( 'digDown' ) or not t( 'placeDown' ) then
                         return false
                     end
                 end
@@ -88,16 +98,11 @@ local things = {
         end
 
         for i=1,height do
-            --local state = t( 'getState' )
+            local state = t( 'getState' )
             shape.rect( t, {
-                v2 = { tonumber( width ), tonumber( depth ), 0, 0 },
-                xbefore = function()
-                    t( 'digUp' )
-                    t( 'dig' )
-                    t( 'digDown' )
-                end,
+                v2 = { tonumber( width ) + state.x - 1, tonumber( depth ) + state.y - 1, 0, 0 },
                 move = persistentMove,
-                after = function()
+                before = function()
                     if t( 'getItemCount', 1 ) == 1 then
                         if not refilldirt( t ) then
                             print( 'Ran out of dirt' )
@@ -106,23 +111,85 @@ local things = {
                     end
                     t( 'select', 1 )
                     if not t( 'placeDown' ) then
-                        t( 'digUp' )
-                        if t( 'digDown' ) then
-                            if not t( 'placeDown' ) then
-                                return false
-                            end
-                        else
-                            -- what?  don't know
+                        if not t( 'digDown' ) or not t( 'placeDown' ) then
                             return false
                         end
                     end
                 end
             })
 
-            t( 'forward' )
-            t( 'up' )
+            if not t( 'up' ) then
+                if not t( 'digUp' ) or not t( 'up' ) then
+                    return false
+                end
+            end
+
+            --state.z = state.z + 1
+            --gostate( t, state )
+        end
+    end,
+
+    void = function( t, width, depth, height )
+        width = tonumber( width or nil )
+        depth = tonumber( depth or nil )
+        height = tonumber( height or nil )
+
+        if not height then height = 1 end
+        if not width or not depth then
+            print( 'void requires a width and depth.  optionally a height also.' )
+            return false
+        end
+
+        local digDir = 'digUp'
+        local digOther = 'digDown'
+        local stepDir = 'up'
+        local start = 1
+        if height < 0 then
+            digDir, digOther = digOther, digDir
+            stepDir = 'down'
+        end
+
+        if height > 2 or height < -2 then
+            while t( digDir ) do end    --deal with gravel
+            t( stepDir )
+            start = 2
+        end
+
+        for i=start,height,3 do
+            local state = t( 'getState' )
+            shape.rect( t, {
+                v2 = { tonumber( width ) + state.x - 1, tonumber( depth ) + state.y - 1, 0, 0 },
+                move = persistentMove,
+                retrymove = retryByDigging,
+                filled = true,
+                before = function()
+                    t( 'dig' )
+                    if i ~= height then
+                        t( digDir )
+                    end
+                    if i ~= 1 then
+                        t( digOther )
+                    end
+                end
+            })
+
+            gostate( t, state )
+
+            while t( digDir ) do end
+            if not t( stepDir ) then
+                return false
+            end
+
             t( 'turnRight' )
-            t( 'back' )
+            if i < height then
+                while t( digDir ) do end
+                t( stepDir )
+
+                if (i + 1) < height then
+                    while t( digDir ) do end
+                    t( stepDir )
+                end
+            end
             --state.z = state.z + 1
             --gostate( t, state )
         end
