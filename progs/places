@@ -1,0 +1,28 @@
+function cc_include( f )
+	if require then
+        package.path = '../?.lua;'..package.path
+		require( f )
+	else
+		dofile( '/john/'..f..'.lua' )
+	end
+end
+
+cc_include( 'util' )
+cc_include( 'places' )
+
+local args = {...}
+
+if table.getn( args ) < 1 then
+    print( 'Usage: places action [args...]' )
+    return
+end
+
+if places[ args[1] ] then
+    local fn = table.remove( args, 1 )
+    print( textutils.serialize( places[ fn ]( unpack( args ) ) ) )
+else
+    print( 'Unknown command. Allowed: ' )
+    for k, v in pairs( places ) do
+        print( k )
+    end
+end

@@ -11,6 +11,76 @@ function cc_include( f )
 	end
 end
 
+if not turtle._util_hacked_ then
+    turtle._util_hacked_ = true
+    turtle._state_ = {
+        x = 0,
+        y = 0,
+        z = 0,
+        dir = 0,
+    }
+
+    local function move( scale )
+        if turtle._state_.dir == 0 then turtle._state_.y = turtle._state_.y + scale
+            elseif turtle._state_.dir == 1 then turtle._state_.x = turtle._state_.x + scale
+            elseif turtle._state_.dir == 2 then turtle._state_.y = turtle._state_.y - scale
+            elseif turtle._state_.dir == 3 then turtle._state_.x = turtle._state_.x - scale
+        end
+    end
+
+
+
+    local orig = {
+        turnLeft = turtle.turnLeft,
+        turnRight = turtle.turnRight,
+        forward = turtle.forward,
+        back = turtle.back,
+        down = turtle.down,
+        up = turtle.up,
+    }
+
+    turtle.turnLeft = function()
+        local ret = orig.turnLeft()
+        turtle._state_.dir = turtle._state_.dir - 1
+        if turtle._state_.dir < 0 then turtle._state_.dir = 3 end
+        return ret
+    end
+
+    turtle.turnRight = function()
+        local ret = orig.turnRight()
+        turtle._state_.dir = turtle._state_.dir + 1
+        if turtle._state_.dir > 3 then turtle._state_.dir = 0 end
+        return ret
+    end
+
+    turtle.forward = function()
+        local ret = orig.forward()
+        if ret then move( 1 ) end
+        return ret
+    end
+
+    turtle.back = function()
+        local ret = orig.back()
+        if ret then move( -1 ) end
+        return ret
+    end
+
+    turtle.up = function()
+        local ret = orig.up()
+        if ret then
+            turtle._state_.z = turtle._state_.z + 1
+        end
+        return ret
+    end
+
+    turtle.down = function()
+        local ret = orig.down()
+        if ret then
+            turtle._state_.z = turtle._state_.z - 1
+        end
+        return ret
+    end
+end
 
 if not math.mod then
     function math.mod( n, d )
@@ -304,12 +374,18 @@ function trackable( t )
 
 	}
 
+    if t._state_ then
+        moves.setState( t._state_.x, t._state_.y, t._state_.z, t._state_.dir )
+    end
+
 	return function( cmd, ... )
 		if t[ cmd ] ~= nil then
 			local ret = t[ cmd ]( unpack( arg ) )
 			if ret ~= false then
 				if moves[ cmd ] ~= nil then
 					moves[ cmd ]()
+                    -- TODO: rewrite this whole thing so I know where I am.
+                    t._state_ = moves.getState()
 				end
 			end
 
@@ -318,7 +394,9 @@ function trackable( t )
 
 		-- not a turtle command, just an internal one
 		if moves[ cmd ] ~= nil then
-			return moves[ cmd ]( unpack( arg ) )
+			local ret = moves[ cmd ]( unpack( arg ) )
+            t._state_ = moves.getState()
+            return ret
 		end
 	end
 end
