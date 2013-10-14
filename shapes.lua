@@ -109,17 +109,29 @@ function shape.rect( t, opts )
     if opts.v1 == false then opts.v1 = stateToVert( t( 'getState' ) ) end
 
     local samex = false
+    local ret = true
+
     if opts.v1[1] >= opts.v2[1] then
         samex = true
         opts.v1 = table.merge( {}, opts.v1, {opts.v2[1]} )
     end
 
     if opts.v1[2] >= opts.v2[2] then
-        if samex then return true end
+        --if samex then return true end
+        if samex then
+            --special case to handle center block
+            ret = ret and shape.straightline( t, table.merge( {}, opts, {
+                v1 = opts.v1,
+                dir = 0,
+                dist = 1,
+            }))
+
+            if ret and opts.onrect() == false then return false end
+            return ret
+
+        end
         opts.v2 = table.merge( {}, opts.v1, {[2] = opts.v2[2]} )
     end
-
-    local ret = true
 
     ret = ret and shape.straightline( t, table.merge( {}, opts, {
         v1 = opts.v1,

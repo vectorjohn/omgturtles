@@ -126,6 +126,17 @@ function RetryCoordMove( t, v, cost, i, retry )
     return cost
 end
 
+function MkCoordMover( mover )
+    return function( t, v, cost, i )
+        local cmd = CoordMoveInstruct( t, v, cost, i )
+        if cmd == nil then return cost end
+        if not mover( cmd ) then
+            return 1 / 0
+        end
+        return cost
+    end
+end
+
 function DriveTo( t, v, cost, i )
     local state = t( 'getState' )
     local dx, dy = v[1], v[2]
