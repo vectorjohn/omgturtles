@@ -8,6 +8,8 @@ dstarlite.lua
 coord_move.lua
 PQueue.lua
 shapes.lua
+Event.lua
+SupplyManager.lua
 progs/
 progs/libtest.lua
 progs/carpet.lua
@@ -17,3 +19,4 @@ progs/dsg
 progs/shape
 progs/recycler
 progs/feeder
+progs/fusion

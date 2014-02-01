@@ -16,7 +16,7 @@ cc_include( 'PQueue' )
 
 t = trackable( turtle )
 
-function refilldirt( t )
+function refilldirt( t, waitforit )
     local refilled = false
     local i = 2
 
@@ -27,6 +27,13 @@ function refilldirt( t )
         end
 
         i = i + 1
+    end
+
+    if waitforit then
+        while t( 'getItemCount', 1 ) == 1 do
+            os.sleep( 10 )
+        end
+        return true
     end
 
     return t( 'getItemCount', 1 ) > 1
@@ -82,7 +89,7 @@ things.slab = function(t, width, depth, height )
             retrymove = retryByDigging,
             before = function()
                 if t( 'getItemCount', 1 ) == 1 then
-                    if not refilldirt( t ) then
+                    if not refilldirt( t, true ) then
                         print( 'Ran out of dirt' )
                         return false
                     end
@@ -124,7 +131,7 @@ things.rect = function( t, width, depth, height )
             move = persistentMove,
             before = function()
                 if t( 'getItemCount', 1 ) == 1 then
-                    if not refilldirt( t ) then
+                    if not refilldirt( t, true ) then
                         print( 'Ran out of dirt' )
                         return false
                     end

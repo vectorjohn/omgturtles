@@ -11,6 +11,7 @@ function cc_include( f )
 	end
 end
 
+cc_include( 'Event' )
 
 if not math.mod then
     function math.mod( n, d )
@@ -194,6 +195,8 @@ function trackable( t )
     local config = {}
 	
 	local moves = {}
+
+    Event.mixin( moves )
 
 	moves = {
 		move = function(scale)

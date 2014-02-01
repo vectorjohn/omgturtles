@@ -1,0 +1,39 @@
+
+function fillSlot( slot )
+    local i = slot + 1
+
+    while turtle.getItemCount( 1 ) < 64 and i ~= slot do
+        turtle.select( i )
+        if turtle.compareTo( slot ) then
+            turtle.transferTo( 1 )
+        end
+        i = i % 16 + 1
+    end
+
+    if turtle.getItemCount( slot ) < 2 then
+        print( "Out of fuel.  Put more in slot " .. slot .. " to resume." )
+
+        while turtle.getItemCount( slot ) < 2 do
+            os.sleep( 10 )
+        end
+        print( "Going back to work..." )
+    end
+end
+
+
+local fuelslot = 1
+turtle.select( fuelslot )
+
+print( "Where's the meltdown button?" )
+
+while true do
+    if turtle.getItemCount( fuelslot ) < 2 then
+        fillSlot( fuelslot )
+        turtle.select( fuelslot )
+    end
+
+    turtle.dropUp( 1 )
+    os.sleep( 45 )
+end
+
+

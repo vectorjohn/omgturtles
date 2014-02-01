@@ -1,0 +1,108 @@
+
+local inventory = {
+   slot = nil,
+   items = {}
+}
+
+local inventoryDir = 'Up'
+
+local keyhandler, inputhandler, swapitem
+local maincoro = coroutine.running()
+
+function fixedPull( filter )
+    -- try to go back to the main coroutine if that makes sense, to do a pullEvent.
+    -- CC makes coroutines hard to use because they hijack them for events.
+end
+
+function toprintable( scancode )
+    print( 'key: '.. scancode )
+    c = keys.getName( scancode )
+
+    local byte = string.byte( c )
+    if scancode >= 2 and scancode <= 11 then
+        -- the idiots that made computercraft made a really dumb api
+        if scancode == 11 then return '0' end
+        print( 'number: '.. tostring( scancode - 1 ) )
+        return tostring( scancode - 1 )
+    elseif string.len( c ) > 1 then
+        return nil
+    elseif byte >= string.byte( 'a' ) and byte <= string.byte( 'z' ) 
+        or byte >= string.byte( 'A' ) and byte <= string.byte( 'Z' ) then
+        return c
+    else
+        return nil
+    end
+end
+
+keyhandler = function()
+    local buf = ''
+
+    while 1 > 0 do
+        print( 'top of the loop' )
+        local event, key = os.pullEvent( 'key' )
+        print( 'key pressed' )
+        print(  event )
+        print( key )
+        if event == 'key' then
+            if key == keys.enter then
+                print( 'resuming inputhandler' )
+                print( inputhandler )
+                print( coroutine.status( inputhandler ) )
+                coroutine.resume( inputhandler, buf )
+                buf = ''
+            else
+                print( 'non-enter pressed' )
+                local c = toprintable( key )
+                if c ~= nil then
+                    buf = buf.. c
+                end
+            end
+        else
+            print( 'it was not a key event' )
+        end
+    end
+end
+
+
+inputhandler = coroutine.create( function()
+
+    while true do
+        print( 'What now?' )
+        local str = coroutine.yield()
+        print( 'resumed input: '.. str );
+        local num = tonumber( str )
+
+        if num ~= nil then
+            print( 'resuming swapitem ('.. coroutine.status( swapitem ).. ')' )
+            coroutine.resume( swapitem, num )
+        elseif num ~= '' then
+            print( 'Weird input: '.. str )
+        end
+    end
+
+end )
+
+
+swapitem = coroutine.create( function()
+
+    while true do
+        local slot = coroutine.yield()
+        print( 'resumed swap' )
+        print( 'swap out slot '.. slot )
+        if inventory.slot ~= nil then
+            turtle.select( inventory.slot )
+            turtle[ 'suck'.. inventoryDir ]()
+        end
+
+        turtle.select( slot )
+        inventory.slot = slot
+        turtle[ 'drop'.. inventoryDir ]()
+    end
+end)
+
+--initialize the coroutines
+coroutine.resume( inputhandler )
+coroutine.resume( swapitem )
+
+--start the loop
+keyhandler()

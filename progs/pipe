@@ -1,0 +1,167 @@
+function cc_include( f )
+	if require then
+        package.path = '../?.lua;'..package.path
+		require( f )
+	else
+		dofile( '/john/'..f..'.lua' )
+	end
+end
+
+cc_include( 'util' )
+cc_include( 'dstarlite' )
+cc_include( 'coord_move' )
+cc_include( 'shapes' )
+-- cc_include( 'NodeMap' )
+cc_include( 'PQueue' )
+
+t = trackable( turtle )
+
+local args = {...}
+
+function refilldirt( t )
+    local refilled = false
+    local i = 2
+
+    while t( 'getItemCount', 1 ) < 64 and i < 17 do
+        t( 'select', i )
+        if t( 'compareTo', 1 ) then
+            t( 'transferTo', 1 )
+        end
+
+        i = i + 1
+    end
+
+    return t( 'getItemCount', 1 ) > 1
+end
+
+function persistentDo( t, cmd )
+    for i=1, 15 do
+        if t( cmd ) then return true end
+        os.sleep( 2 )
+    end
+    return false
+end
+
+function persistentFn( fn )
+    for i=1, 15 do
+        if fn() then return true end
+        os.sleep( 2 )
+    end
+    return false
+end
+
+function parseline( line )
+    local v = {}
+    s:gsub( '([^ ]*)', function(m) table.insert( v,m ) end )
+
+    return {
+        cmd = v[1],
+        dist = tonumber( v[2] )
+    }
+end
+
+function doline( t, line )
+    local cmd = parseline( line )
+    local tcmd, tpre, stepper
+
+    if cmd.cmd == 'forward' then
+        stepper = function()
+            t( 'dig' )
+            if not t( 'forward' ) then return false end
+            t( 'placeDown' )
+            return true
+        end
+    elseif cmd.cmd = 'up' then
+        stepper = function()
+            t( 'digUp' )
+            if not t( 'up' ) then return false end
+            t( 'placeDown' )
+            return true
+        end
+    elseif cmd.cmd = 'down' then
+        stepper = function()
+            t( 'dig' )
+            return t( 'forward' )
+        end
+    else
+        print( 'Unknown command: '.. cmd.cmd )
+        return false
+    end
+    for i=1, cmd.dist do
+        t( tpre )
+    end
+end
+
+if table.getn( args ) ~= 1 then
+    print( 'Usage: pipe <scriptfile>' )
+    os.exit()
+end
+
+if string.sub( args[1], 1, 1 ) ~= '/' then
+    args[1] = shell.path().. '/'.. args[1]
+end
+
+fh = fs.open( args[1], 'r' )
+if not fh then
+    print( 'Could not open script file.' )
+    os.exit()
+end
+
+local line = fh.readLine()
+local linenum = 1
+while line do
+
+    if not doline( line ) then
+        print( 'Could not finish script on line '.. linenum.. ': '.. line )
+        os.exit()
+    end
+
+    line = fh.readLine()
+    linenum = linenum + 1
+end
+
+shape.rect( t, {
+    v2 = { tonumber( args[1] or 3 ), tonumber( args[2] or 3 ), 0, 0 },
+    xbefore = function()
+        t( 'digUp' )
+        t( 'dig' )
+        t( 'digDown' )
+    end,
+    filled = true,
+    move = persistentMove,
+    after = function()
+        if t( 'getItemCount', 1 ) == 1 then
+            if not refilldirt( t ) then
+                print( 'Ran out of dirt' )
+                return false
+            end
+        end
+        t( 'select', 1 )
+        t( 'placeDown' )
+    end
+})
+
+--[[
+gocoord( t, {-1, -1, 0, 0} )
+faceDirection( t, 0 )
+
+shape.rect( t, {
+    v2 = { tonumber( args[1] or 3 ) + 1, tonumber( args[2] or 3 ) + 1, 0, 0 },
+    after = function()
+        t( 'placeUp' )
+    end
+})
+--]]
+
+--[[
+if table.getn( args ) ~= 2 then
+    print( 'Usage: forest width height' )
+    return
+end
+
+
+--treefarm( t, tonumber( args[1] ), tonumber( args[2] ) )
+TendTreeFarm( t, tonumber( args[1] ), tonumber( args[2] ) )
+
+--]]
+
