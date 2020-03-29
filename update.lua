@@ -1,4 +1,4 @@
-src = 'http://home.vectorjohn.com/omgturtles'
+src = 'https://vectorjohn.com/omgturtles'
 dir = '/john'
 
 fs.makeDir( dir )
